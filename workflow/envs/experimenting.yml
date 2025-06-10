@@ -1,0 +1,16 @@
+name: experimenting
+channels:
+  - conda-forge
+  - bioconda
+  - nodefaults
+dependencies:
+  - python=3.10
+  - pandas
+  - numpy
+  - seaborn
+  - matplotlib
+  - scikit-learn
+  - plotly
+  - ipykernel
+  - bioconductor-genie3
+  - networkx
