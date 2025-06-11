@@ -1,24 +1,24 @@
 import pandas as pd
 import numpy as np
 import networkx as nx
+from snakemake.script import snakemake
 
-# Sample input: GENIE3 output table
-data = {
-    "regulatoryGene": ["Gene2", "Gene2", "Gene2", "Gene7", "Gene7"],
-    "targetGene": ["Gene14", "Gene7", "Gene12", "Gene18", "Gene17"],
-    "weight": [0.0, 0.0, 0.0, 0.7820, 0.6928],
-}
-network_df = pd.DataFrame(data)
+gene = snakemake.params["gene"]
+k = snakemake.params["k"]
+t = snakemake.params["t"]
 
-# Sample AlphaMissense pathogenicity scores
-am_scores = {
-    "Gene2": 0.9,
-    "Gene7": 0.4,
-    "Gene14": 0.1,
-    "Gene12": 0.2,
-    "Gene18": 0.3,
-    "Gene17": 0.5,
-}
+network_df = pd.read_csv(snakemake.input["genie3_links"], sep="\t")
+
+# Read AM score from file
+with open(snakemake.input["am_score"]) as f:
+    line = f.readline().strip().split("\t")
+    am_gene, am_score = line[0], float(line[1])
+
+assert (
+    gene == am_gene
+), f"Gene in config ({gene}) does not match gene in AM score file ({am_gene})"
+
+am_scores = {gene: am_score}
 
 
 def logistic_transform(score, k=10, t=0.5):
@@ -58,12 +58,11 @@ def propagate_impacts_graph(G, initial_impacts, steps=2):
     return {nodes[i]: vec[i] for i in range(len(nodes))}
 
 
-# Example workflow
+# Workflow
 G = build_graph(network_df)
-Gp = apply_perturbation_graph(G, "Gene2", am_scores, mode="knockout")
-impacts = propagate_impacts_graph(Gp, {"Gene2": 1.0}, steps=2)
+Gp = apply_perturbation_graph(G, gene, am_scores, mode="knockout", k=k, t=t)
+impacts = propagate_impacts_graph(Gp, {gene: 1.0}, steps=2)
 
 # Output
-print("Nodes:", Gp.nodes)
-print("Edges with weights:", list(Gp.edges(data=True)))
-print("Propagated impacts:", impacts)
+out_df = pd.DataFrame(list(impacts.items()), columns=["gene", "impact"])
+out_df.to_csv(snakemake.output["scores"], index=False)

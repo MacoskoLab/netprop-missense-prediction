@@ -1,22 +1,6 @@
-# Main entrypoint of the workflow.
-# Please follow the best practices:
-# https://snakemake.readthedocs.io/en/stable/snakefiles/best_practices.html,
-# in particular regarding the standardized folder structure mentioned there.
-
-
-# load configuration
-# -----------------------------------------------------
 configfile: "config/config.yml"
 
 
-# load rules
-# -----------------------------------------------------
-include: "rules/common.smk"
-include: "rules/process_reads.smk"
-
-
-# optional messages, log and error handling
-# -----------------------------------------------------
 onstart:
     print("\n--- Analysis started ---\n")
 
@@ -29,9 +13,28 @@ onerror:
     print("\n--- An error occurred! ---\n")
 
 
-# target rules
-# -----------------------------------------------------
+include: "rules/genie3.smk"
+include: "rules/perturb.smk"
+include: "rules/download_am_scores.smk"
+include: "rules/save_config.smk"
+
+
+import os
+
+# Get the next run number by checking existing results/run*/ directories
+run_base = "results/run"
+existing = [d for d in os.listdir("results") if d.startswith("run") and os.path.isdir(os.path.join("results", d))]
+if existing:
+    run_nums = [int(d.replace("run", "")) for d in existing if d.replace("run", "").isdigit()]
+    next_run = max(run_nums) + 1 if run_nums else 1
+else:
+    next_run = 1
+run = f"run{next_run}"
+
 rule all:
     input:
-        "results/multiqc/multiqc_report.html",
+        f"results/{run}/genie3/output.tsv",
+        f"results/{run}/perturb/scores.tsv",
+        f"results/{run}/alphamissense/am_score.tsv",
+        f"results/{run}/config.yml",
     default_target: True

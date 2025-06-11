@@ -1,0 +1,9 @@
+name: download_am_scores
+channels:
+  - conda-forge
+  - nodefaults
+dependencies:
+  - python=3.10
+  - pandas
+  - requests
+  - numpy

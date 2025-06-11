@@ -1,0 +1,11 @@
+genie3_params:
+  scrnaseq_input: "resources/scrnaseq.tsv"
+  n_trees: 1000
+  min_size: 10
+  max_depth: 5
+
+perturb_params:
+  gene: "GENE1"
+  variant: "p.A123T"
+  k: 10
+  t: 0.5
