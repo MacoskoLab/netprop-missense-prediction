@@ -1,11 +1,12 @@
+run_name: "test1"
+run_number: 1
+
 genie3_params:
-  scrnaseq_input: "resources/scrnaseq.tsv"
-  n_trees: 1000
-  min_size: 10
-  max_depth: 5
+  scrnaseq_input: "resources/GSE158067/GSE158067_gene_exp_mtx_mutant.txt"
+  n_trees: 50
 
 perturb_params:
-  gene: "GENE1"
-  variant: "p.A123T"
-  k: 10
+  perturbations: "resources/GSE158067/GSE158067_mutations_by_sample.txt"
+  pathogenicity_score_transform: "threshold"
+  k: 10.0
   t: 0.5

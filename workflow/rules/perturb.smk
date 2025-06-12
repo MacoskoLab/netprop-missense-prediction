@@ -1,14 +1,16 @@
 rule perturb:
     input:
-        genie3_links=f"results/{run}/genie3/output.csv",
-        am_score=f"results/{run}/alphamissense/am_score.txt"
+        genie3_links=f"results/{run}/genie3/output.tsv",
+        am_scores=f"results/{run}/get_am_scores/am_scores.tsv",
     output:
-        scores=f"results/{run}/perturb/scores.tsv"
+        perturb_scores=f"results/{run}/perturb/scores.tsv",
     params:
-        gene=lambda wildcards, config: config['perturb_params']['gene']
-        k=lambda wildcards, config: config['perturb_params']['k']
-        t=lambda wildcards, config: config['perturb_params']['t']
+        k=lambda wildcards: config['perturb_params']['k'],
+        t=lambda wildcards: config['perturb_params']['t'],
+        pathogenicity_score_transform=lambda wildcards: config['perturb_params']['pathogenicity_score_transform']
     conda:
-        "workflow/envs/perturb.yml"
+        "../envs/perturb.yml"
+    log:
+        f"results/{run}/perturb/perturb.log"
     script:
-        "workflow/scripts/perturb.py"
+        "../scripts/perturb.py"

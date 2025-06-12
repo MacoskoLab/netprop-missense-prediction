@@ -1,40 +1,47 @@
 configfile: "config/config.yml"
 
 
-onstart:
-    print("\n--- Analysis started ---\n")
+import os
+import re
+def get_run_number():
+    """Get the current run number based on existing directories."""
+    if config.get("run_number", None):
+        # If run_number is specified in config, use it directly
+        return config["run_number"]
+    # Get all directories in results
+    results_dir = "results"
+    if not os.path.exists(results_dir):
+        return 1
+    existing_runs = [d for d in os.listdir(results_dir) if re.match(r'run\d+', d)]
+    
+    # Extract run numbers and find the next one
+    run_numbers = [int(re.search(r'\d+', d).group()) for d in existing_runs]
+    next_run = max(run_numbers, default=0) + 1
+    
+    return next_run
 
+def create_run_name(run_number):
+    """Create a run name based on the run number and config."""
+    run_name = config.get("run_name", None)
+    if run_name:
+        run = f"run{run_number}_{run_name}"
+    else:
+        run = f"run{run_number}"
 
-onsuccess:
-    print("\n--- Workflow finished! ---\n")
+    return run
 
-
-onerror:
-    print("\n--- An error occurred! ---\n")
+run_number = get_run_number()
+run = create_run_name(run_number)
 
 
 include: "rules/genie3.smk"
 include: "rules/perturb.smk"
-include: "rules/download_am_scores.smk"
-include: "rules/save_config.smk"
+include: "rules/get_am_scores.smk"
 
+ruleorder: genie3 > get_am_scores > perturb
 
-import os
-
-# Get the next run number by checking existing results/run*/ directories
-run_base = "results/run"
-existing = [d for d in os.listdir("results") if d.startswith("run") and os.path.isdir(os.path.join("results", d))]
-if existing:
-    run_nums = [int(d.replace("run", "")) for d in existing if d.replace("run", "").isdigit()]
-    next_run = max(run_nums) + 1 if run_nums else 1
-else:
-    next_run = 1
-run = f"run{next_run}"
 
 rule all:
     input:
-        f"results/{run}/genie3/output.tsv",
-        f"results/{run}/perturb/scores.tsv",
-        f"results/{run}/alphamissense/am_score.tsv",
-        f"results/{run}/config.yml",
+        f"results/{run}/perturb/scores.tsv"
     default_target: True

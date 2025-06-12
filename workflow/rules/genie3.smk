@@ -1,14 +1,15 @@
 rule genie3:
+    threads: workflow.cores
     input:
         expr=config['genie3_params']['scrnaseq_input']
     output:
         links=f"results/{run}/genie3/output.tsv"
     params:
-        n_trees=lambda wildcards, config: config['genie3_params']['n_trees']
-        min_size=lambda wildcards, config: config['genie3_params']['min_size']
-        max_depth=lambda wildcards, config: config['genie3_params']['max_depth']
+        n_trees=lambda wildcards: config['genie3_params']['n_trees'],
     conda:
-        "workflow/envs/genie3.yml"
+        "../envs/genie3.yml"
+    log:
+        f"results/{run}/genie3/genie3.log"
     script:
-        "workflow/scripts/genie3.r"
+        "../scripts/genie3.R"
 
