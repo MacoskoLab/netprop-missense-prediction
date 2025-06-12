@@ -3,6 +3,9 @@ configfile: "config/config.yml"
 
 import os
 import re
+import shutil
+
+
 def get_run_number():
     """Get the current run number based on existing directories."""
     if config.get("run_number", None):
@@ -12,10 +15,10 @@ def get_run_number():
     results_dir = "results"
     if not os.path.exists(results_dir):
         return 1
-    existing_runs = [d for d in os.listdir(results_dir) if re.match(r'run\d+', d)]
-    
+    # Match run folders like runX or runX_namewithnumbersinit
+    existing_runs = [d for d in os.listdir(results_dir) if re.match(r'^run(\d+)(_.+)?$', d)]
     # Extract run numbers and find the next one
-    run_numbers = [int(re.search(r'\d+', d).group()) for d in existing_runs]
+    run_numbers = [int(re.match(r'^run(\d+)', d).group(1)) for d in existing_runs]
     next_run = max(run_numbers, default=0) + 1
     
     return next_run
@@ -30,8 +33,16 @@ def create_run_name(run_number):
 
     return run
 
+def copy_config_to_run(run):
+    """Copy the config file to the run directory."""
+    # Copy config file to run directory
+    run_dir = f"results/{run}"
+    os.makedirs(run_dir, exist_ok=True)
+    shutil.copyfile("config/config.yml", f"{run_dir}/{run}_config.yml")
+
 run_number = get_run_number()
 run = create_run_name(run_number)
+copy_config_to_run(run)
 
 
 include: "rules/genie3.smk"
@@ -39,7 +50,6 @@ include: "rules/perturb.smk"
 include: "rules/get_am_scores.smk"
 
 ruleorder: genie3 > get_am_scores > perturb
-
 
 rule all:
     input:

@@ -14,6 +14,7 @@ import networkx as nx
 steps = snakemake.params.get("steps", 2)
 k = snakemake.params.get("k", 10.0)
 t = snakemake.params.get("t", 0.5)
+threshold = snakemake.params.get("threshold", 0.6)
 
 # Select pathogenicity score transform: "threshold" or "sigmoid"
 transform_method = snakemake.params.get("pathogenicity_score_transform", "threshold")
@@ -36,10 +37,10 @@ am_df.columns = ["sample", "gene", "variant", "score"]
 def threshold_grn_weights(
     W: pd.Series,
     S: pd.Series,
-    threshold: float = 0.6,
+    threshold: float,
 ) -> pd.Series:
     """Abdo 'intervention' method for GRN weights based on pathogenicity scores.
-    Doing this element-wise is slow but I will come back to optimize it later.
+    Doing this element-wise is likely slow but I will come back to optimize it later.
     """
     # align indices
     W_aligned, S_aligned = W.align(S, join="inner")
@@ -55,7 +56,7 @@ def threshold_grn_weights(
     return pd.Series(data=sign * mag_new, index=W_aligned.index, name="W_thresholded")
 
 
-def logistic_transform(score, k=10.0, t=0.5):
+def logistic_transform(score, k, t):
     """Apply logistic transformation to a score."""
     return 1 / (1 + np.exp(-k * (score - t)))
 
@@ -63,8 +64,8 @@ def logistic_transform(score, k=10.0, t=0.5):
 def sigmoid_grn_weights(
     W: pd.Series,
     S: pd.Series,
-    k: float = k,
-    t: float = t,
+    k: float,
+    t: float,
 ) -> pd.Series:
     """Sigmoid-based method for GRN weights based on pathogenicity scores.
     This method scales the weights by (1 - severity) where severity is computed
@@ -86,7 +87,7 @@ def build_graph(df):
     return G
 
 
-def apply_perturbation_graph(G, gene, am_scores, k=10, t=0.5):
+def apply_perturbation_graph(G, gene, am_scores, k: float, t: float):
     """Apply a perturbation to the graph by modifying the weights of edges
     originating from the perturbed gene based on its AM scores."""
     H = G.copy()
@@ -97,7 +98,7 @@ def apply_perturbation_graph(G, gene, am_scores, k=10, t=0.5):
     return H
 
 
-def propagate_impacts_graph(G, initial_impacts, steps=2):
+def propagate_impacts_graph(G, initial_impacts, steps: int):
     """Propagate impacts through the graph for a given number of steps."""
     nodes = list(G.nodes)
     idx = {g: i for i, g in enumerate(nodes)}
@@ -128,7 +129,7 @@ def main():
             g: logistic_transform(am_scores_cell[g], k, t) for g in genes
         }
         # Propagate impacts
-        impacts = propagate_impacts_graph(H, initial_impacts, steps=steps)
+        impacts = propagate_impacts_graph(H, initial_impacts, steps)
         # Record results
         for affected, val in impacts.items():
             results.append(
