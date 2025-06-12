@@ -1,6 +1,6 @@
 rule get_am_scores:
     input:
-        perturbations=lambda wildcards: config['perturb_params']['perturbations'],
+        variants=lambda wildcards: config['am_params']['variants'],
     output:
         am_scores=f"results/{run}/get_am_scores/am_scores.tsv",
     conda:

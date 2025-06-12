@@ -1,12 +1,18 @@
 run_name: "test1"
-#run_number: 1
+run_number: 1
 
 genie3_params:
-  scrnaseq_input: "resources/GSE158067/GSE158067_gene_exp_mtx_mutant.txt"
+  scrnaseq_input: "resources/GSE158067/GSE158067_gene_exp_mtx_wt.txt"  # unperturbed gene expression matrix
   n_trees: 1  # set this way for testing purposes, should be set to ~50 for real runs
 
+am_params:
+  variants: "resources/GSE158067/GSE158067_mutations_list.txt" # file with variants that we need AM scores for
+
 perturb_params:
-  perturbations: "resources/GSE158067/GSE158067_mutations_by_sample.txt"
-  pathogenicity_score_transform: "threshold"
-  k: 10.0
-  t: 0.5
+  # list of perturbations (genes, missense mutations) that we want to predict the effect of
+  perturbations_list: "resources/GSE158067/GSE158067_mutations_list.txt"
+  steps: 2
+  pathogenicity_score_transform_method: "threshold"  # options: "threshold", "sigmoid"
+  threshold: 0.6
+  steepness: 10.0
+  midpoint: 0.5

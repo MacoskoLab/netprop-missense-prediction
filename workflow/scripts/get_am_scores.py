@@ -47,28 +47,27 @@ def fetch_am_score(gene: str, variant: str) -> float:
 
 
 # Use Snakemake parameters directly
-perturbations_list = snakemake.input["perturbations"]
+variants_list = snakemake.input["variants"]
 out_path = snakemake.output["am_scores"]
 
 # Read the sample_to_variant file with pandas
-sample_df = pd.read_csv(perturbations_list, sep="\t", header=None)
+sample_df = pd.read_csv(variants_list, sep="\t", header=None)
 
 results = []
 cache = {}
 for idx, row in tqdm(
     sample_df.iterrows(), total=sample_df.shape[0], desc="Downloading AM scores"
 ):
-    sample = row[0]
-    gene = row[1]
-    variant = row[2]
+    gene = row[0]
+    variant = row[1]
     cache_key = (gene, variant)
     if cache_key in cache:
         score = cache[cache_key]
     else:
         score = fetch_am_score(gene, variant)
         cache[cache_key] = score
-    results.append((sample, gene, variant, score))
+    results.append((gene, variant, score))
 
-results_df = pd.DataFrame(results, columns=["sample", "gene", "variant", "score"])
-results_df.to_csv(out_path, sep="\t", index=False, header=False)
-print(f"Downloaded AM scores for {len(results)} sample-variant pairs.")
+results_df = pd.DataFrame(results, columns=["gene", "variant", "score"])
+results_df.to_csv(out_path, sep="\t", index=False, header=True)
+print(f"Downloaded AM scores for {len(results)} gene-variant pairs.")

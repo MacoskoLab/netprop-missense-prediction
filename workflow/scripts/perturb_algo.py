@@ -10,141 +10,127 @@ import pandas as pd
 import numpy as np
 import networkx as nx
 
-# Snakemake parameters
-steps = snakemake.params.get("steps", 2)
-k = snakemake.params.get("k", 10.0)
-t = snakemake.params.get("t", 0.5)
-threshold = snakemake.params.get("threshold", 0.6)
 
-# Select pathogenicity score transform: "threshold" or "sigmoid"
-transform_method = snakemake.params.get("pathogenicity_score_transform", "threshold")
-
-# Snakemake inputs
-genie3_links_file = snakemake.input["genie3_links"]
-am_scores_file = snakemake.input["am_scores"]
-
-# Snakemake outputs
-scores_out_file = snakemake.output["scores"]
-
-# Read GENIE3 links
-network_df = pd.read_csv(genie3_links_file, sep="\t")
-
-# Read AM scores: expects columns sample, gene, variant, score
-am_df = pd.read_csv(am_scores_file, sep="\t", header=None)
-am_df.columns = ["sample", "gene", "variant", "score"]
-
-
-def threshold_grn_weights(
-    W: pd.Series,
-    S: pd.Series,
-    threshold: float,
-) -> pd.Series:
-    """Abdo 'intervention' method for GRN weights based on pathogenicity scores.
-    Doing this element-wise is likely slow but I will come back to optimize it later.
+def build_graph(network_df: pd.DataFrame) -> nx.DiGraph:
     """
-    # align indices
-    W_aligned, S_aligned = W.align(S, join="inner")
-    sign = np.sign(W_aligned.to_numpy())
-    mag = np.abs(W_aligned.to_numpy())
-    mag_new = mag.copy()
-    # apply threshold per-score
-    for i, score in enumerate(S_aligned.values):
-        if not np.isnan(score) and score >= threshold:
-            frac = (score - threshold) / (1.0 - threshold)
-            frac = min(max(frac, 0.0), 1.0)
-            mag_new[i] = mag[i] * (1.0 - frac)
-    return pd.Series(data=sign * mag_new, index=W_aligned.index, name="W_thresholded")
-
-
-def logistic_transform(score, k, t):
-    """Apply logistic transformation to a score."""
-    return 1 / (1 + np.exp(-k * (score - t)))
-
-
-def sigmoid_grn_weights(
-    W: pd.Series,
-    S: pd.Series,
-    k: float,
-    t: float,
-) -> pd.Series:
-    """Sigmoid-based method for GRN weights based on pathogenicity scores.
-    This method scales the weights by (1 - severity) where severity is computed
-    from the logistic transformation of the score."""
-    # align indices
-    W_aligned, S_aligned = W.align(S, join="inner")
-    # compute severity per score
-    severities = S_aligned.apply(lambda score: logistic_transform(score, k, t))
-    # scale weights by (1 - severity)
-    W_new = W_aligned * (1.0 - severities)
-    return pd.Series(data=W_new.values, index=W_aligned.index, name="W_sigmoid")
-
-
-def build_graph(df):
-    """Build a directed graph from the GENIE3 links DataFrame."""
+    Construct a directed graph with 'weight' attribute on edges.
+    """
     G = nx.DiGraph()
-    for _, row in df.iterrows():
-        G.add_edge(row["regulatoryGene"], row["targetGene"], weight=row["weight"])
+    for source_gene, target_gene, weight in zip(
+        network_df["regulatoryGene"], network_df["targetGene"], network_df["weight"]
+    ):
+        G.add_edge(source_gene, target_gene, weight=weight)
     return G
 
 
-def apply_perturbation_graph(G, gene, am_scores, k: float, t: float):
-    """Apply a perturbation to the graph by modifying the weights of edges
-    originating from the perturbed gene based on its AM scores."""
-    H = G.copy()
-    severity = logistic_transform(am_scores[gene], k, t)
-    scale = 1 - severity
-    for u, v, data in H.out_edges(gene, data=True):
-        data["weight"] *= scale
-    return H
+def threshold_transform_graph(
+    G: nx.DiGraph, score_series: pd.Series, threshold: float
+) -> nx.DiGraph:
+    """
+    For each node with score >= threshold, scale outgoing edge weights.
+    """
+    G_out = G.copy()
+    for node, score in score_series.items():
+        if np.isnan(score) or score < threshold:
+            continue
+        frac = np.clip((score - threshold) / (1.0 - threshold), 0.0, 1.0)
+        for _, tgt, data in G_out.out_edges(node, data=True):  # type: ignore
+            data["weight"] *= 1.0 - frac
+    return G_out  # type: ignore
 
 
-def propagate_impacts_graph(G, initial_impacts, steps: int):
-    """Propagate impacts through the graph for a given number of steps."""
+def sigmoid_transform_graph(
+    G: nx.DiGraph, score_series: pd.Series, steepness: float, midpoint: float
+) -> nx.DiGraph:
+    """
+    For each node, apply sigmoid-based scaling to outgoing edge weights.
+    """
+    G_out = G.copy()
+    for node, score in score_series.items():
+        if np.isnan(score):
+            continue
+        frac = 1.0 / (1.0 + np.exp(-steepness * (score - midpoint)))
+        for _, tgt, data in G_out.out_edges(node, data=True):  # type: ignore
+            data["weight"] *= 1.0 - frac
+    return G_out  # type: ignore
+
+
+def propagate_effects_graph(
+    G: nx.DiGraph, score_series: pd.Series, steps: int
+) -> pd.Series:
+    """
+    Propagate initial scores through graph adjacency weights.
+    Returns a series of cumulative perturbation per node.
+    """
     nodes = list(G.nodes)
-    idx = {g: i for i, g in enumerate(nodes)}
-    adj = nx.to_numpy_array(G, nodelist=nodes, weight="weight")
-    vec = np.zeros(len(nodes))
-    for g, val in initial_impacts.items():
-        vec[idx[g]] = val
+    propagated = pd.Series({n: score_series.get(n, 0.0) for n in nodes})
     for _ in range(steps):
-        vec = vec @ adj
-    return {nodes[i]: vec[i] for i in range(len(nodes))}
+        propagated_next = pd.Series(0.0, index=nodes)
+        for source_gene, target_gene, data in G.edges(data=True):
+            propagated_next[target_gene] += propagated[source_gene] * data["weight"]
+        propagated += propagated_next
+    return propagated
+
+
+def update_graph_weights_with_propagation(
+    G_original: nx.DiGraph, propagated: pd.Series
+) -> nx.DiGraph:
+    """
+    Scale each node's outgoing edges by (1 - propagated[node]).
+    """
+    G_out = G_original.copy()
+    for node in G_out.nodes:
+        # if not in path we are just multiplying by 1
+        factor = 1.0 - propagated.get(node, 0.0)
+        for _, tgt, data in G_out.out_edges(node, data=True):  # type: ignore
+            data["weight"] *= factor
+    return G_out  # type: ignore
+
+
+def save_graph_results(G: nx.DiGraph, output_path: str):
+    """
+    Write edge list with weights to file.
+    """
+    rows = [(src, tgt, data["weight"]) for src, tgt, data in G.edges(data=True)]
+    out_df = pd.DataFrame(rows, columns=["regulatoryGene", "targetGene", "weight"])
+    out_df.to_csv(output_path, sep="\t", index=False, header=False)
 
 
 def main():
-    # Build base graph
+    # Load parameters
+    steps = snakemake.params.get("steps", 2)
+    steepness = snakemake.params.get("steepness", 10.0)
+    midpoint = snakemake.params.get("midpoint", 0.5)
+    threshold_value = snakemake.params.get("threshold", 0.6)
+    method = snakemake.params.get("pathogenicity_score_transform_method", "threshold")
+
+    # Load file paths
+    genie3_links_path = snakemake.input["genie3_links"]
+    am_scores_path = snakemake.input["am_scores"]
+    perturb_list_path = snakemake.input["perturbations_list"]
+    output_path = snakemake.output["scores"]
+
+    # Load data
+    network_df = pd.read_csv(genie3_links_path, sep="\t")
+    am_df = pd.read_csv(am_scores_path, sep="\t")
+    perturb_df = pd.read_csv(perturb_list_path, sep="\t")
+    # Filter AM scores to only those gene-variant pairs
+    sel = am_df.merge(perturb_df, on=["gene", "variant"])
+    # Build score series indexed by gene; exact variants, no aggregation
+    S_series = sel.set_index("gene")["score"]
+
     G = build_graph(network_df)
 
-    results = []
-    for cell_id, group in am_df.groupby("sample"):
-        # Build per-cell AM scores
-        am_scores_cell = dict(zip(group["gene"], group["score"]))
-        genes = list(am_scores_cell.keys())
-        # Apply all perturbations sequentially
-        H = G.copy()
-        for g in genes:
-            H = apply_perturbation_graph(H, g, am_scores_cell, k=k, t=t)
-        # Build initial impact vector
-        initial_impacts = {
-            g: logistic_transform(am_scores_cell[g], k, t) for g in genes
-        }
-        # Propagate impacts
-        impacts = propagate_impacts_graph(H, initial_impacts, steps)
-        # Record results
-        for affected, val in impacts.items():
-            results.append(
-                {
-                    "cell_id": cell_id,
-                    "perturbed_genes": ",".join(genes),
-                    "affected_gene": affected,
-                    "impact": val,
-                }
-            )
+    if method == "threshold":
+        G_scaled = threshold_transform_graph(G, S_series, threshold_value)
+    if method == "sigmoid":
+        G_scaled = sigmoid_transform_graph(G, S_series, steepness, midpoint)
+    else:
+        raise ValueError(f"Unknown method: {method}")
 
-    # Write output table
-    out_df = pd.DataFrame(results)
-    out_df.to_csv(scores_out_file, sep="\t", index=False)
+    propagated_series = propagate_effects_graph(G_scaled, S_series, steps)
+    G_final = update_graph_weights_with_propagation(G, propagated_series)
+    save_graph_results(G_final, output_path)
 
 
-if __name__ == "__main__":
-    main()
+main()
