@@ -93,7 +93,7 @@ def save_graph_results(G: nx.DiGraph, output_path: str):
     """
     rows = [(src, tgt, data["weight"]) for src, tgt, data in G.edges(data=True)]
     out_df = pd.DataFrame(rows, columns=["regulatoryGene", "targetGene", "weight"])
-    out_df.to_csv(output_path, sep="\t", index=False, header=False)
+    out_df.to_csv(output_path, sep="\t", index=False, header=True)
 
 
 def main():
@@ -102,7 +102,11 @@ def main():
     steepness = snakemake.params.get("steepness", 10.0)
     midpoint = snakemake.params.get("midpoint", 0.5)
     threshold_value = snakemake.params.get("threshold", 0.6)
-    method = snakemake.params.get("pathogenicity_score_transform_method", "threshold")
+    method = (
+        snakemake.params.get("pathogenicity_score_transform_method", "threshold")
+        .strip()
+        .lower()
+    )
 
     # Load file paths
     genie3_links_path = snakemake.input["genie3_links"]
@@ -120,10 +124,9 @@ def main():
     S_series = sel.set_index("gene")["score"]
 
     G = build_graph(network_df)
-
     if method == "threshold":
         G_scaled = threshold_transform_graph(G, S_series, threshold_value)
-    if method == "sigmoid":
+    elif method == "sigmoid":
         G_scaled = sigmoid_transform_graph(G, S_series, steepness, midpoint)
     else:
         raise ValueError(f"Unknown method: {method}")

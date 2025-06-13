@@ -51,7 +51,7 @@ variants_list = snakemake.input["variants"]
 out_path = snakemake.output["am_scores"]
 
 # Read the sample_to_variant file with pandas
-sample_df = pd.read_csv(variants_list, sep="\t", header=None)
+sample_df = pd.read_csv(variants_list, sep="\t")
 
 results = []
 cache = {}

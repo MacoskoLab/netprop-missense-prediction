@@ -44,14 +44,16 @@ run_number = get_run_number()
 run = create_run_name(run_number)
 copy_config_to_run(run)
 
+print(f"RUNNING WORKFLOW: {run}")
+
 
 include: "rules/genie3.smk"
-include: "rules/perturb.smk"
-include: "rules/get_am_scores.smk"
-
-ruleorder: genie3 > get_am_scores > perturb
+include: "rules/perturb_algo.smk"
+include: "rules/geneRNIB.smk"
 
 rule all:
     input:
-        f"results/{run}/perturb/scores.tsv"
+        f"results/{run}/predicted_perturbed_network.tsv",
+        #f"results/{run}/real_perturbed_network.tsv",
+        f"results/{run}/geneRNIB_scores.yaml"
     default_target: True
