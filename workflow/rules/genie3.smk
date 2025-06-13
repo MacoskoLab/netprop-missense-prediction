@@ -5,6 +5,8 @@ rule create_ground_truth_unperturbed_network:
     output:
         links=f"results/{run}/real_unperturbed_network.tsv"
     params:
+        tree_method=lambda wildcards: config['genie3_params']['tree_method'],
+        K=lambda wildcards: config['genie3_params']['K'],
         n_trees=lambda wildcards: config['genie3_params']['n_trees'],
     conda:
         "../envs/genie3.yml"
