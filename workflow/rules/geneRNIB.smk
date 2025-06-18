@@ -1,11 +1,11 @@
 rule convert_network_to_h5ad:
     input:
-        tsv="results/{run}/predicted_perturbed_network.tsv"
+        tsv="results/{run}/predicted_perturbed_network.tsv",
     output:
-        h5ad="results/{run}/predicted_perturbed_network.h5ad"
+        h5ad="results/{run}/predicted_perturbed_network.h5ad",
     params:
         dataset_id=lambda wildcards: "GSE158067",
-        method_id=lambda wildcards: "perturb_algo"
+        method_id=lambda wildcards: "perturb_algo",
     conda:
         "../envs/convert_adata.yml"
     shell:
@@ -25,11 +25,11 @@ adata.write_h5ad("{output.h5ad}")
 rule convert_sc_to_h5ad:
     input:
         expr="resources/GSE158067/GSE158067_gene_exp_mtx_filtered.txt",
-        meta="resources/GSE158067/GSE158067_cell_to_perturbation.tsv"
+        meta="resources/GSE158067/GSE158067_cell_to_perturbation.tsv",
     output:
-        h5ad="results/{run}/GSE158067_sc.h5ad"
+        h5ad="results/{run}/GSE158067_sc.h5ad",
     params:
-        dataset_id=lambda wildcards: "GSE158067"
+        dataset_id=lambda wildcards: "GSE158067",
     conda:
         "../envs/convert_adata.yml"
     shell:
@@ -51,17 +51,15 @@ rule evaluate_perturb_with_geneRNIB:
     input:
         pred_h5ad="results/{run}/predicted_perturbed_network.h5ad",
         eval_sc="results/{run}/GSE158067_sc.h5ad",
-        tf_all="resources/geneRNIB/grn_benchmark/prior/tf_all.csv"
+        tf_all="resources/task_grn_inference/resources_test/grn_benchmark/prior/tf_all.csv",
     output:
-        scores="results/{run}/geneRNIB_scores.yaml"
+        scores="results/{run}/geneRNIB_scores.yaml",
     params:
-        temp="results/{run}/tmp"
-    container:
-        "docker://openproblems-bio/task_grn_inference:latest"
+        temp="results/{run}/tmp",
     shell:
         """
         mkdir -p {params.temp} &&
-        scripts/single_grn_evaluation.sh \
+        resources/task_grn_inference/scripts/single_grn_evaluation.sh \
           {input.pred_h5ad} op \
           --evaluation_data_sc {input.eval_sc} \
           --tf_all {input.tf_all} \

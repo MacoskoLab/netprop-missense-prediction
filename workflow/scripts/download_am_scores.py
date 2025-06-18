@@ -6,10 +6,11 @@ if TYPE_CHECKING:
     snakemake: Snakemake
     snakemake = None  # type: ignore
 
-import requests
 import sys
-import pandas as pd
 from io import StringIO
+
+import pandas as pd
+import requests
 from tqdm import tqdm
 
 

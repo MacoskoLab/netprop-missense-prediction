@@ -1,0 +1,9 @@
+name: compare_networks
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python>=3.7
+  - pandas
+  - numpy
+  - scipy

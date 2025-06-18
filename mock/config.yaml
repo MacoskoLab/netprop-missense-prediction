@@ -1,0 +1,5 @@
+use-conda: true
+cores: 1
+ignore-incomplete: true
+#dry-run: true
+rerun-triggers: params

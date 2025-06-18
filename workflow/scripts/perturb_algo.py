@@ -6,9 +6,9 @@ if TYPE_CHECKING:
     snakemake: Snakemake
     snakemake = None  # type: ignore
 
-import pandas as pd
-import numpy as np
 import networkx as nx
+import numpy as np
+import pandas as pd
 
 
 def build_graph(network_df: pd.DataFrame) -> nx.DiGraph:

@@ -12,3 +12,8 @@ workflow/notebooks/.ipynb_checkpoints/**
 **/Rplots.pdf
 
 __pycache__
+
+.nextflow.log*
+.nextflow/*
+output/**
+work/**

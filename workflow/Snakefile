@@ -16,22 +16,26 @@ def get_run_number():
     if not os.path.exists(results_dir):
         return 1
     # Match run folders like runX or runX_namewithnumbersinit
-    existing_runs = [d for d in os.listdir(results_dir) if re.match(r'^run(\d+)(_.+)?$', d)]
+    existing_runs = [
+        d for d in os.listdir(results_dir) if re.match(r"^run(\d+)(_.+)?$", d)
+    ]
     # Extract run numbers and find the next one
-    run_numbers = [int(re.match(r'^run(\d+)', d).group(1)) for d in existing_runs]
+    run_numbers = [int(re.match(r"^run(\d+)", d).group(1)) for d in existing_runs]
     next_run = max(run_numbers, default=0) + 1
-    
+
     return next_run
+
 
 def create_run_name(run_number):
     """Create a run name based on the run number and config."""
     run_name = config.get("run_name", None)
     if run_name:
-        run = f"run{run_number}_{run_name}"
+        run = f"{run_name}_{run_number}"
     else:
-        run = f"run{run_number}"
+        run = f"_{run_number}"
 
     return run
+
 
 def copy_config_to_run(run):
     """Copy the config file to the run directory."""
@@ -39,6 +43,7 @@ def copy_config_to_run(run):
     run_dir = f"results/{run}"
     os.makedirs(run_dir, exist_ok=True)
     shutil.copyfile("config/config.yml", f"{run_dir}/{run}_config.yml")
+
 
 run_number = get_run_number()
 run = create_run_name(run_number)
@@ -50,10 +55,11 @@ print(f"RUNNING WORKFLOW: {run}")
 include: "rules/genie3.smk"
 include: "rules/perturb_algo.smk"
 include: "rules/geneRNIB.smk"
+include: "rules/compare_networks.smk"
+
 
 rule all:
     input:
-        f"results/{run}/predicted_perturbed_network.tsv",
-        #f"results/{run}/real_perturbed_network.tsv",
-        #f"results/{run}/geneRNIB_scores.yaml"
+        f"results/{run}/network_comparison.tsv",
+        f"results/{run}/figs/network_comparison/",
     default_target: True

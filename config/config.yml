@@ -1,11 +1,12 @@
-run_name: "get_genie"
+run_name: "test_plotting"
 run_number: 1
 
 genie3_params:
-  scrnaseq_input: "resources/GSE158067/GSE158067_gene_exp_mtx_filtered_wt.txt"  # unperturbed gene expression matrix
+  real_unperturbed_gene_expr: "resources/GSE158067/GSE158067_gene_exp_mtx_filtered_wt.txt"  # unperturbed gene expression matrix
+  real_perturbed_gene_expr: "resources/GSE158067/GSE158067_gene_exp_mtx_filtered_mt.txt"  # perturbed gene expression matrix
   tree_method: "RF"  # options: "ET", "RF" (default is "RF")
   K: "sqrt"  # default is 1000
-  n_trees: 1000  # default is 1000
+  n_trees: 1  # default is 1000
 
 am_params:
   variants: "resources/GSE158067/GSE158067_mutations_CH02_CH04.txt"  # file with variants that we need AM scores for
@@ -18,6 +19,3 @@ perturb_params:
   threshold: 0.6
   steepness: 10.0
   midpoint: 0.5
-
-compare_networks_params:
-  ground_truth_scrnaseq: "resources/GSE158067/GSE158067_gene_exp_mtx_filtered.txt"  # perturbed gene expression matrix
