@@ -7,7 +7,6 @@ set.seed(123) # For reproducibility of results
 sn <- get("snakemake", envir = .GlobalEnv)
 opt <- list(
   input = sn@input[["expr"]],
-  output_links = sn@output[["links"]],
   output_weights = sn@output[["weights"]],
   tree_method = sn@params[["tree_method"]],
   K = sn@params[["K"]],
@@ -35,16 +34,3 @@ write.table(weightMat,
             row.names=TRUE,
             quote=FALSE)
 cat("Weight matrix is written\n")
-
-# Obtain ranked list of regulatory links
-cat("Getting link list\n")
-linkList <- getLinkList(weightMat)
-
-# Write output
-cat("Writing link list\n")
-write.table(linkList,
-            file=opt$output_links,
-            sep="\t",
-            row.names=FALSE,
-            quote=FALSE)
-cat("Link list is written\n")

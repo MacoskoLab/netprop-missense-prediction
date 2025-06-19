@@ -1,7 +1,7 @@
 
-rule run_genie3:
+rule build_genie3_weights:
     """
-    Build either the unperturbed or perturbed ground truth network
+    Build the weight matrix for either unperturbed or perturbed expression data
     depending on the `{state}` wildcard (allowed values: ``unperturbed``, ``perturbed``).
     """
     threads: workflow.cores
@@ -14,7 +14,7 @@ rule run_genie3:
         ),
     # Wildcard `state` propagates into the output name
     output:
-        links=f"results/{run}/real_{{state}}_network.tsv",
+        weights=f"results/{run}/real_{{state}}_weights.tsv",
     params:
         tree_method=lambda wc: config["genie3_params"]["tree_method"],
         K=lambda wc: config["genie3_params"]["K"],
@@ -22,4 +22,20 @@ rule run_genie3:
     conda:
         "../envs/genie3.yml"
     script:
-        "../scripts/genie3.R"
+        "../scripts/genie3_weights.R"
+
+
+rule get_genie3_links:
+    """
+    Generate the ranked list of regulatory links from the weight matrix
+    for either unperturbed or perturbed networks.
+    """
+    threads: workflow.cores
+    input:
+        weights=f"results/{run}/real_{{state}}_weights.tsv",
+    output:
+        links=f"results/{run}/real_{{state}}_network.tsv",
+    conda:
+        "../envs/genie3.yml"
+    script:
+        "../scripts/genie3_links.R"

@@ -1,4 +1,4 @@
-rule compare_perturbed_networks:
+rule compare_networks:
     input:
         real_unperturbed=f"results/{run}/real_unperturbed_network.tsv",
         real_perturbed=f"results/{run}/real_perturbed_network.tsv",

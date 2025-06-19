@@ -1,0 +1,159 @@
+#!/usr/bin/env bash
+
+# Get the directory where this script is located
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+
+# Change to the script directory
+cd "$SCRIPT_DIR"
+
+# Function to display usage
+usage() {
+    echo "Usage: $0 [--test | -v | --verbose] [additional snakemake arguments...]"
+    echo ""
+    echo "Profile Options:"
+    echo "  --test        Run with mock + verbose profiles"
+    echo "  -v, --verbose Run with standard + verbose profiles"
+    echo "  (no profile)  Run with standard profile only"
+    echo ""
+    echo "Any additional arguments are passed directly to snakemake."
+    echo ""
+    echo "Examples:"
+    echo "  $0                           # Standard run"
+    echo "  $0 --test                    # Test run with mock profile"
+    echo "  $0 -v --cores 4              # Verbose run with 4 cores"
+    echo "  $0 --test --dry-run          # Test run in dry-run mode"
+    echo "  $0 rule_name                 # Run specific rule with standard profile"
+    echo ""
+    exit 1
+}
+
+# Function to merge YAML files
+merge_yaml_files() {
+    local output_file="$1"
+    shift
+    local input_files=("$@")
+    
+    # Start with empty file
+    > "$output_file"
+    
+    # Concatenate all input files, removing duplicate keys (later ones override)
+    for file in "${input_files[@]}"; do
+        if [ -f "$file" ]; then
+            echo "# Merged from: $file" >> "$output_file"
+            cat "$file" >> "$output_file"
+            echo "" >> "$output_file"
+        else
+            echo "Warning: Profile file $file not found"
+        fi
+    done
+}
+
+# Function to activate conda environment and run snakemake
+run_snakemake() {
+    local profile_files=("$@")
+    # Remove profile files from arguments to get additional snakemake args
+    local additional_args=("${SNAKEMAKE_ARGS[@]}")
+    
+    echo "Activating conda environment 'snakemake'..."
+    eval "$(conda shell.bash hook)"
+    conda activate snakemake
+    
+    if [ $? -ne 0 ]; then
+        echo "Error: Failed to activate conda environment 'snakemake'"
+        echo "Make sure the environment exists: conda create -n snakemake snakemake"
+        exit 1
+    fi
+    
+    # Create temporary profile directory
+    temp_profile_dir=$(mktemp -d)
+    temp_config="$temp_profile_dir/config.yaml"
+    
+    # Create log file and setup logging
+    log_file="logs/snakemake.$(date +%Y-%m-%dT%H-%M-%S%z).log"
+    mkdir -p logs
+    
+    # Function to log to both stdout and file
+    log_both() {
+        echo "$1"
+        echo "$1" >> "$log_file"
+    }
+
+    human() {
+        local s=$1
+        printf '%dd %02dh %02dm %02ds\n' \
+            $(( s/86400 )) \
+            $(( (s%86400)/3600 )) \
+            $(( (s%3600)/60 )) \
+            $(( s%60 ))
+    }
+    
+    log_both "Creating temporary profile by merging: ${profile_files[*]}"
+    merge_yaml_files "$temp_config" "${profile_files[@]}"
+    
+    # Build and display the command
+    snakemake_cmd="snakemake --profile $temp_profile_dir ${additional_args[*]}"
+    log_both "Executing command: $snakemake_cmd"
+    log_both "Temporary profile: $temp_profile_dir"
+    log_both "Logging to: $log_file"
+    log_both "Started at: $(date)"
+    start_time=$(date +%s)
+    echo ""
+    
+    # Run the command with output to both stdout and log file
+    eval "$snakemake_cmd 2>&1 | tee -a $log_file"
+    
+    end_time=$(date +%s)
+    duration=$((end_time - start_time))
+
+    # Clean up temporary directory
+    log_both "Cleaning up temporary profile: $temp_profile_dir"
+    rm -rf "$temp_profile_dir"
+
+    # Final log messages
+    log_both "Finished at: $(date)"
+    log_both "Total duration: $(human $duration) seconds"
+    log_both "Log file saved at: $log_file"
+}
+
+# Parse command line arguments
+SNAKEMAKE_ARGS=()
+PROFILE_MODE=""
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --test)
+            PROFILE_MODE="test"
+            shift
+            ;;
+        -v|--verbose)
+            PROFILE_MODE="verbose"
+            shift
+            ;;
+        -h|--help)
+            usage
+            ;;
+        *)
+            # All other arguments go to snakemake
+            SNAKEMAKE_ARGS+=("$1")
+            shift
+            ;;
+    esac
+done
+
+# Run based on profile mode
+case "$PROFILE_MODE" in
+    test)
+        echo "Running in test mode (mock + verbose profiles)"
+        run_snakemake "profiles/mock/config.yaml" "profiles/verbose/config.yaml"
+        rm $log_file
+        ;;
+    verbose)
+        echo "Running in verbose mode (standard + verbose profiles)"
+        run_snakemake "profiles/standard/config.yaml" "profiles/verbose/config.yaml"
+        ;;
+    *)
+        echo "Running in standard mode"
+        run_snakemake "profiles/standard/config.yaml"
+        ;;
+esac

@@ -17,3 +17,6 @@ __pycache__
 .nextflow/*
 output/**
 work/**
+
+.env*
+config_local.yml

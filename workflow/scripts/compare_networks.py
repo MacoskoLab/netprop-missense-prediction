@@ -6,7 +6,6 @@ if TYPE_CHECKING:
     snakemake: Snakemake
     snakemake = None  # type: ignore
 
-import os
 
 import numpy as np
 import pandas as pd
@@ -25,13 +24,15 @@ def load_networks():
 
 def compute_distances(df1, df2, name1, name2):
     """Compute distances between two networks."""
-    # Make sure regulatory and target genes match in both networks
-    assert set(df1["regulatoryGene"]) == set(
-        df2["regulatoryGene"]
-    ), f"Regulatory genes in {name1} and {name2} networks do not match."
-    assert set(df1["targetGene"]) == set(
-        df2["targetGene"]
-    ), f"Target genes in {name1} and {name2} networks do not match."
+    gene_pairs1 = set(
+        df1[["regulatoryGene", "targetGene"]].itertuples(index=False, name=None)
+    )
+    gene_pairs2 = set(
+        df2[["regulatoryGene", "targetGene"]].itertuples(index=False, name=None)
+    )
+
+    if gene_pairs1 != gene_pairs2:
+        print(f"Some edges do not match between networks in {name1} and {name2}.")
 
     # Merge on regulatoryGene and targetGene
     merged = pd.merge(
@@ -41,6 +42,16 @@ def compute_distances(df1, df2, name1, name2):
         how="outer",
         suffixes=("_1", "_2"),
     )
+
+    print(len(merged), "edges in the merged network.")
+    na_edges = merged[merged["weight_1"].isna() | merged["weight_2"].isna()]
+    if not na_edges.empty:
+        print("Edges with missing weights:")
+        print(na_edges[["regulatoryGene", "targetGene", "weight_1", "weight_2"]])
+    else:
+        print("No edges have missing weights.")
+
+    merged[["weight_1", "weight_2"]] = merged[["weight_1", "weight_2"]].fillna(0)
 
     # Extract weight vectors as numpy arrays
     w1 = merged["weight_1"].astype(float).to_numpy()

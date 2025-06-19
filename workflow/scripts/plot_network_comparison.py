@@ -183,7 +183,7 @@ def create_bar_plots(results_data):
 
     # Save bar plot
     bar_path = os.path.join(snakemake.output.figs, "network_comparison_barplot.png")
-    save_fig(fig_bars, bar_path)
+    save_plotly_fig(fig_bars, bar_path)
 
 
 def create_difference_scatter_plot(results_data, network_map):
@@ -263,7 +263,7 @@ def create_difference_scatter_plot(results_data, network_map):
     diff_path = os.path.join(
         snakemake.output.figs, "network_difference_scatterplot.png"
     )
-    save_fig(fig, diff_path)
+    save_plotly_fig(fig, diff_path)
 
 
 def load_data():
