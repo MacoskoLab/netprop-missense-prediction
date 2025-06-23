@@ -2,73 +2,72 @@ configfile: "config/config.yml"
 configfile: "config/config_local.yml"
 
 
-import os
-import shutil
-import smtplib, ssl
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
+import sys
+
+sys.path.append("pipeline_utils")
+from pipeline_utils import create_run_name, copy_config_to_run, send_email
+
+# Directory structure variables
+SCRIPTS_DIR = "scripts"
+ENVS_DIR = "envs"
+NOTEBOOKS_DIR = "notebooks"
+RULES_DIR = "rules"
+
+# Create run name
+run = create_run_name(config)
+print(f"########### RUN NAME: {run} ###########", flush=True)
 
 
-def create_run_name():
-    """Create a run name based on the run number and config."""
-    run_name = config.get("run_name", None)
-    if not run_name:
-        run_name = "_"
-
-    run_number = config.get("run_number", None)
-    if not run_number:
-        # List existing run directories
-        existing_runs = [
-            run_dir
-            for run_dir in os.listdir("results")
-            if os.path.isdir(os.path.join("results", run_dir))
-        ]
-        # Filter for directories with the same run name
-        existing_runs = [
-            run_dir for run_dir in existing_runs if run_dir.startswith(run_name)
-        ]
-        # Extract run numbers
-        run_numbers = [int(run_dir.split("_")[-1]) for run_dir in existing_runs]
-        run_number = max(run_numbers) + 1 if run_numbers else 1
-
-    return run_name + "_" + str(run_number)
+# Include rule files
+include: f"{RULES_DIR}/preprocessing/run_genie3.smk"
+include: f"{RULES_DIR}/perturbation/simple_perturb_algo.smk"
+include: f"{RULES_DIR}/evaluation/geneRNIB_evaluation.smk"
+include: f"{RULES_DIR}/evaluation/simple_network_evaluation.smk"
+include: f"{RULES_DIR}/evaluation/mock_perturbation_evaluation.smk"
 
 
-def copy_config_to_run(run):
-    """Copy the config file to the run directory."""
-    # Copy config file to run directory
-    run_dir = f"results/{run}"
-    os.makedirs(run_dir, exist_ok=True)
-    shutil.copyfile("config/config.yml", f"{run_dir}/{run}_config.yml")
+# Target rules for different pipeline components
+rule genie3:
+    """Run GENIE3 network inference"""
+    input:
+        f"results/{run}/preprocessing/real_unperturbed_network.tsv",
+        f"results/{run}/preprocessing/real_perturbed_network.tsv",
 
 
-def send_email(body, subject):
-    """Sends an email notification"""
-    # Load email settings from config
-    try:
-        sender_gmail = config["email"]["gmail_notification_email"]
-        sender_gmail_password = config["email"]["gmail_notification_password"]
-        receiver_email = config["email"]["email_notification_receiver"]
-    except KeyError:
-        print(
-            "Some/all email settings not found in config. Skipping email notification."
-        )
-        return
-
-    # Set up message
-    message = MIMEMultipart()
-    message["From"] = sender_gmail
-    message["To"] = receiver_email
-    message["Subject"] = subject
-    message.attach(MIMEText(body, "plain"))
-
-    # Set up SMTP server and send message
-    context = ssl.create_default_context()
-    with smtplib.SMTP_SSL("smtp.gmail.com", port=465, context=context) as server:
-        server.login(sender_gmail, sender_gmail_password)
-        server.sendmail(sender_gmail, receiver_email, message.as_string())
+rule perturbation:
+    """Run perturbation algorithm"""
+    input:
+        f"results/{run}/perturbation/predicted_perturbed_network.tsv",
 
 
+rule evaluation_network_comparison:
+    """Run network comparison evaluation"""
+    input:
+        f"results/{run}/evaluation/network_comparison/network_comparison.tsv",
+        f"results/{run}/evaluation/network_comparison/figs/",
+
+
+rule evaluation_edge_weight_analysis:
+    """Run edge weight analysis evaluation"""
+    input:
+        f"results/{run}/evaluation/edge_weight_analysis/edge_weight_difference_comparison.tsv",
+        f"results/{run}/evaluation/edge_weight_analysis/figs/",
+
+
+rule evaluation_geneRNIB:
+    """Run geneRNIB evaluation"""
+    input:
+        f"results/{run}/evaluation/geneRNIB/geneRNIB_scores.yaml",
+
+
+rule evaluation_mock_perturbation:
+    """Run mock perturbation evaluation"""
+    input:
+        f"results/{run}/evaluation/mock_perturbation/edge_weight_difference_comparison.tsv",
+        f"results/{run}/evaluation/mock_perturbation/figs/",
+
+
+# Workflow event handlers
 onstart:
     copy_config_to_run(run)
 
@@ -77,6 +76,7 @@ onsuccess:
     send_email(
         f"Workflow run {run} completed successfully.",
         subject=f"[snakemake] Workflow SUCCEEDED ({run})",
+        config=config,
     )
 
 
@@ -84,22 +84,5 @@ onerror:
     send_email(
         f"Workflow run {run} failed. Check the logs for details.",
         subject=f"[snakemake] Workflow FAILED ({run})",
+        config=config,
     )
-
-
-run = create_run_name()
-print(f"########### RUN NAME: {run} ###########", flush=True)
-
-
-include: "rules/genie3.smk"
-include: "rules/perturb_algo.smk"
-include: "rules/geneRNIB.smk"
-include: "rules/compare_networks.smk"
-
-
-rule all:
-    input:
-        f"results/{run}/network_comparison.tsv",
-        f"results/{run}/figs/network_comparison/",
-        f"results/{run}/predicted_perturbed_network.tsv",
-    default_target: True

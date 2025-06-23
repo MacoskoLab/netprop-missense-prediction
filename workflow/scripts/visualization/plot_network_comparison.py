@@ -7,10 +7,14 @@ if TYPE_CHECKING:
     snakemake: Snakemake
     snakemake = None  # type: ignore
 
+import sys
+
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+
+sys.path.append("../utils")
 from plotly_util import *
 
 
@@ -119,6 +123,9 @@ def create_bar_plots(results_data):
     metrics = ["wasserstein", "euclidean", "e_distance"]
     metric_titles = ["Wasserstein", "Euclidean", "Energy"]
 
+    # Color scheme to match the edge weight difference plot
+    colors = ["#6366f1", "#ef4444", "#10b981"]  # Blue, Red, Green
+
     fig_bars = make_subplots(rows=3, cols=1, vertical_spacing=0.08, shared_xaxes=True)
 
     for i, (metric, title) in enumerate(zip(metrics, metric_titles), 1):
@@ -137,7 +144,8 @@ def create_bar_plots(results_data):
                 showlegend=False,
                 text=[f"{val:.3f}" for val in values],
                 textposition="outside",
-                textfont=dict(size=18),
+                textfont=dict(size=18, color="black"),
+                marker=dict(color=colors[i - 1]),
             ),
             row=i,
             col=1,
@@ -145,26 +153,29 @@ def create_bar_plots(results_data):
 
     # Update layout for bar plots
     fig_bars.update_layout(
-        title_text="Network Distance",
+        title_text="Edge Weight Difference Distance",
         height=900,
         width=900,
         title_font_size=26,
         title_y=0.98,
         font=dict(size=16),
         margin=dict(t=80, b=80, l=100, r=80),
+        plot_bgcolor="rgba(240,240,240,0.2)",  # Light gray background
+        paper_bgcolor="white",
     )
 
     # Update y-axis labels to be the distance type and remove gridlines
     for i, (metric, title) in enumerate(zip(metrics, metric_titles), 1):
         # Get max value for this metric to set appropriate range
         values = [row[metric] for row in results_data]
-        max_val = max(values)
+        max_val = max(values) if max(values) > 0 else 1.0
 
         fig_bars.update_yaxes(
             title_text=title,
             title_font_size=20,
             tickfont_size=16,
             showgrid=False,
+            zeroline=False,
             range=[0, max_val * 1.15],  # Add 15% padding at top for text labels
             row=i,
             col=1,
@@ -174,11 +185,21 @@ def create_bar_plots(results_data):
     for i in range(1, 4):
         if i < 3:  # Top and middle subplots
             fig_bars.update_xaxes(
-                showticklabels=False, showgrid=False, ticks="", row=i, col=1
+                showticklabels=False,
+                showgrid=False,
+                zeroline=False,
+                ticks="",
+                row=i,
+                col=1,
             )
         else:  # Bottom subplot
             fig_bars.update_xaxes(
-                title_font_size=20, tickfont_size=20, showgrid=False, row=i, col=1
+                title_font_size=20,
+                tickfont_size=20,
+                showgrid=False,
+                zeroline=False,
+                row=i,
+                col=1,
             )
 
     # Save bar plot

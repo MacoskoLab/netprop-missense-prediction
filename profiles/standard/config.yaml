@@ -1,2 +1,6 @@
 use-conda: true
 cores: 1
+printshellcmds: true
+show-failed-logs: true
+keep-going: false
+restart-times: 0

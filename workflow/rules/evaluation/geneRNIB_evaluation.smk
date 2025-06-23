@@ -1,13 +1,13 @@
 rule convert_network_to_h5ad:
     input:
-        tsv="results/{run}/predicted_perturbed_network.tsv",
+        tsv="results/{run}/perturbation/predicted_perturbed_network.tsv",
     output:
-        h5ad="results/{run}/predicted_perturbed_network.h5ad",
+        h5ad="results/{run}/evaluation/geneRNIB/predicted_perturbed_network.h5ad",
     params:
         dataset_id=lambda wildcards: "GSE158067",
         method_id=lambda wildcards: "perturb_algo",
     conda:
-        "../envs/convert_adata.yml"
+        f"../../{ENVS_DIR}/convert_adata.yml"
     shell:
         """
         python -c '
@@ -27,11 +27,11 @@ rule convert_sc_to_h5ad:
         expr="resources/GSE158067/GSE158067_gene_exp_mtx_filtered.txt",
         meta="resources/GSE158067/GSE158067_cell_to_perturbation.tsv",
     output:
-        h5ad="results/{run}/GSE158067_sc.h5ad",
+        h5ad="results/{run}/evaluation/geneRNIB/GSE158067_sc.h5ad",
     params:
         dataset_id=lambda wildcards: "GSE158067",
     conda:
-        "../envs/convert_adata.yml"
+        f"../../{ENVS_DIR}/convert_adata.yml"
     shell:
         """
         python -c '
@@ -49,13 +49,13 @@ adata.write_h5ad("{output.h5ad}")
 
 rule evaluate_perturb_with_geneRNIB:
     input:
-        pred_h5ad="results/{run}/predicted_perturbed_network.h5ad",
-        eval_sc="results/{run}/GSE158067_sc.h5ad",
+        pred_h5ad="results/{run}/evaluation/geneRNIB/predicted_perturbed_network.h5ad",
+        eval_sc="results/{run}/evaluation/geneRNIB/GSE158067_sc.h5ad",
         tf_all="resources/task_grn_inference/resources_test/grn_benchmark/prior/tf_all.csv",
     output:
-        scores="results/{run}/geneRNIB_scores.yaml",
+        scores="results/{run}/evaluation/geneRNIB/geneRNIB_scores.yaml",
     params:
-        temp="results/{run}/tmp",
+        temp="results/{run}/evaluation/geneRNIB/tmp",
     shell:
         """
         mkdir -p {params.temp} &&

@@ -1,0 +1,26 @@
+#!/bin/bash
+
+# Simple pipeline runner - just activate conda and call snakemake
+
+set -euo pipefail
+
+# Activate snakemake conda environment
+source "$(conda info --base)/etc/profile.d/conda.sh"
+conda activate snakemake
+
+# Change to workflow directory
+cd $(dirname "$0")
+
+# Create logs directory if it doesn't exist
+mkdir -p logs
+
+# Generate timestamp for log file
+TIMESTAMP=$(date +"%Y-%m-%dT%H-%M-%S%z")
+LOG_FILE="logs/snakemake.${TIMESTAMP}.log"
+
+# Run snakemake with standard profile and pass through all arguments
+# Use tee to log output to file while still showing on console
+snakemake --profile ./profiles/standard "$@" 2>&1 | tee "$LOG_FILE"
+
+# Capture exit code from snakemake (not tee)
+exit ${PIPESTATUS[0]}

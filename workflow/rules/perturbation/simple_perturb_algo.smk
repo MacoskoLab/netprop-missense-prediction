@@ -1,23 +1,25 @@
 rule download_am_scores:
+    """Download AM scores from the specified source."""
     input:
         variants=lambda wildcards: config["am_params"]["variants"],
     output:
-        am_scores=f"results/{run}/am_scores.tsv",
+        am_scores=f"results/{run}/perturbation/am_scores.tsv",
     conda:
-        "../envs/download_am_scores.yml"
+        f"../../{ENVS_DIR}/download_am_scores.yml"
     script:
-        "../scripts/download_am_scores.py"
+        f"../../{SCRIPTS_DIR}/perturbation/download_am_scores.py"
 
 
-rule run_perturb_algo:
+rule run_simple_perturb_algo:
+    """Run the simple perturbation algorithm using AM scores."""
     input:
-        genie3_links=f"results/{run}/real_unperturbed_network.tsv",
-        am_scores=f"results/{run}/am_scores.tsv",
+        genie3_links=f"results/{run}/preprocessing/real_unperturbed_network.tsv",
+        am_scores=f"results/{run}/perturbation/am_scores.tsv",
         perturbations_list=lambda wildcards: config["perturb_params"][
             "perturbations_list"
         ],
     output:
-        scores=f"results/{run}/predicted_perturbed_network.tsv",
+        scores=f"results/{run}/perturbation/predicted_perturbed_network.tsv",
     params:
         steps=lambda wildcards: config["perturb_params"]["steps"],
         steepness=lambda wildcards: config["perturb_params"]["steepness"],
@@ -28,6 +30,6 @@ rule run_perturb_algo:
         ]["pathogenicity_score_transform_method"],
         debug=lambda wildcards: config["perturb_params"]["debug"],
     conda:
-        "../envs/perturb.yml"
+        f"../../{ENVS_DIR}/perturb.yml"
     script:
-        "../scripts/perturb_algo.py"
+        f"../../{SCRIPTS_DIR}/perturbation/perturb_algo.py"

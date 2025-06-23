@@ -1,5 +1,5 @@
-run_name: "GSE158067_genie_1_tree"
-run_number: 2
+run_name: "check_new_config"
+run_number: 1
 
 # Parameters for the Genie3 algorithm
 genie3_params:
@@ -9,9 +9,10 @@ genie3_params:
   K: "sqrt"  # default is 1000
   n_trees: 1  # default is 1000
   
-  # Link filtering parameters (mutually exclusive - use only one)
-  top_n_links: 20000  # Number of top-ranked links to report (set to null to disable)
-  threshold: null  # Weight threshold for links (set to null to disable, e.g., 0.1)
+  # Link filtering parameters
+  link_filtering_method: "top_n_links"  # options: "top_n_links", "threshold"
+  top_n_links: 20000  # Number of top-ranked links to report (used when link_filtering_method = "top_n_links")
+  threshold: 0.1  # Weight threshold for links (used when link_filtering_method = "threshold")
 
 # Parameters for the AlphaMissense API
 am_params:

@@ -85,7 +85,7 @@ def update_graph_weights_with_propagation(
     """
     G_out = G_original.copy()
     for node in G_out.nodes:
-        # if not in path we are just multiplying by 1
+        # if not in path we are just multiplying by 1!
         factor = 1.0 - propagated.get(node, 0.0)
         for _, tgt, data in G_out.out_edges(node, data=True):  # type: ignore
             data["weight"] *= factor
