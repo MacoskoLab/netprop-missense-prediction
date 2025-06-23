@@ -101,4 +101,5 @@ rule all:
     input:
         f"results/{run}/network_comparison.tsv",
         f"results/{run}/figs/network_comparison/",
+        f"results/{run}/predicted_perturbed_network.tsv",
     default_target: True

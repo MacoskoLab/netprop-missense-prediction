@@ -1,21 +1,29 @@
 run_name: "GSE158067_genie_1_tree"
-run_number: 1
+run_number: 2
 
+# Parameters for the Genie3 algorithm
 genie3_params:
   real_unperturbed_gene_expr: "resources/GSE158067/GSE158067_gene_exp_mtx_filtered_wt.txt"  # unperturbed gene expression matrix
   real_perturbed_gene_expr: "resources/GSE158067/GSE158067_gene_exp_mtx_filtered_mt.txt"  # perturbed gene expression matrix
   tree_method: "RF"  # options: "ET", "RF" (default is "RF")
   K: "sqrt"  # default is 1000
   n_trees: 1  # default is 1000
+  
+  # Link filtering parameters (mutually exclusive - use only one)
+  top_n_links: 20000  # Number of top-ranked links to report (set to null to disable)
+  threshold: null  # Weight threshold for links (set to null to disable, e.g., 0.1)
 
+# Parameters for the AlphaMissense API
 am_params:
   variants: "resources/GSE158067/GSE158067_mutations_CH02_CH04.txt"  # file with variants that we need AM scores for
 
+# Parameters for the perturbation prediction
 perturb_params:
   # list of perturbations (genes, missense mutations) that we want to predict the effect of
   perturbations_list: "resources/GSE158067/GSE158067_mutations_CH02_CH04.txt"
-  steps: 2
-  pathogenicity_score_transform_method: "sigmoid"  # options: "threshold", "sigmoid"
-  threshold: 0.6
-  steepness: 10.0
-  midpoint: 0.5
+  steps: 3
+  pathogenicity_score_transform_method: "threshold"  # options: "threshold", "sigmoid"
+  threshold: 0.6  # for threshold method
+  steepness: 10.0  # for sigmoid method
+  midpoint: 0.5  # for sigmoid method
+  debug: true  # set to true to print debug information

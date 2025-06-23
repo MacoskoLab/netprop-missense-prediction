@@ -6,9 +6,14 @@ if TYPE_CHECKING:
     snakemake: Snakemake
     snakemake = None  # type: ignore
 
+import logging
+
 import networkx as nx
 import numpy as np
 import pandas as pd
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 
 def build_graph(network_df: pd.DataFrame) -> nx.DiGraph:
@@ -102,11 +107,30 @@ def main():
     steepness = snakemake.params.get("steepness", 10.0)
     midpoint = snakemake.params.get("midpoint", 0.5)
     threshold_value = snakemake.params.get("threshold", 0.6)
-    method = (
-        snakemake.params.get("pathogenicity_score_transform_method", "threshold")
-        .strip()
-        .lower()
-    )
+
+    # Debug flag
+    debug = snakemake.params.get("debug", False)
+    if debug:
+        method = (
+            snakemake.params.get("pathogenicity_score_transform_method", "threshold")
+            .strip()
+            .lower()
+        )
+        logger.setLevel(logging.DEBUG)
+        logger.debug(
+            "Parameters: steps=%s, method=%s, threshold=%s, steepness=%s, midpoint=%s",
+            steps,
+            method,
+            threshold_value,
+            steepness,
+            midpoint,
+        )
+    else:
+        method = (
+            snakemake.params.get("pathogenicity_score_transform_method", "threshold")
+            .strip()
+            .lower()
+        )
 
     # Load file paths
     genie3_links_path = snakemake.input["genie3_links"]
@@ -131,9 +155,26 @@ def main():
     else:
         raise ValueError(f"Unknown method: {method}")
 
+    if debug:
+        # Log number of modified edges
+        original_edge_count = G.number_of_edges()
+        scaled_edge_count = sum(
+            1
+            for _, _, data in G_scaled.edges(data=True)
+            if data["weight"] != G.get_edge_data(_, _, default={}).get("weight")
+        )
+        logger.debug(
+            "Scaled edges: %s out of %s", scaled_edge_count, original_edge_count
+        )
+
     propagated_series = propagate_effects_graph(G_scaled, S_series, steps)
+
+    if debug:
+        logger.debug("Propagated series head:\n%s", propagated_series.head().to_dict())
+
     G_final = update_graph_weights_with_propagation(G, propagated_series)
     save_graph_results(G_final, output_path)
 
 
-main()
+if __name__ == "__main__":
+    main()

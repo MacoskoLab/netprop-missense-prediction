@@ -26,6 +26,7 @@ rule run_perturb_algo:
         pathogenicity_score_transform_method=lambda wildcards: config[
             "perturb_params"
         ]["pathogenicity_score_transform_method"],
+        debug=lambda wildcards: config["perturb_params"]["debug"],
     conda:
         "../envs/perturb.yml"
     script:
