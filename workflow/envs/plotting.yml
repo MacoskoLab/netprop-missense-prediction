@@ -1,12 +1,12 @@
-name: plot_networks
 channels:
   - conda-forge
   - bioconda
 dependencies:
   - python=3.10
   - pandas
+  - numpy
   - plotly
   - python-kaleido
   - matplotlib
   - seaborn
-  - numpy
+  - pytables

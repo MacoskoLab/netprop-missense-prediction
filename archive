@@ -1,0 +1,16 @@
+#!/bin/bash
+#
+# Move old logs to the archive directory
+#
+
+set -euo pipefail
+
+# Change to workflow directory
+cd $(dirname "$0")
+
+# Create archive directories if they don't exist
+mkdir -p logs/archive
+mkdir -p results/archive
+
+# Move old log files to archive
+find logs -maxdepth 1 -type f -name 'snakemake.*.log' -exec mv {} logs/archive/ \;

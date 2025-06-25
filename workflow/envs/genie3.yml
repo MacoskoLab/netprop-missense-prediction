@@ -1,4 +1,3 @@
-name: genie3
 channels:
   - conda-forge
   - bioconda
@@ -8,3 +7,4 @@ dependencies:
   - bioconductor-genie3
   - r-doparallel
   - r-doRNG
+  - bioconductor-rhdf5

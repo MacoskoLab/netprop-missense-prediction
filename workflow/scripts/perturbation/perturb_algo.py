@@ -6,174 +6,159 @@ if TYPE_CHECKING:
     snakemake: Snakemake
     snakemake = None  # type: ignore
 
-import logging
-
-import networkx as nx
 import numpy as np
 import pandas as pd
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
 
-
-def build_graph(network_df: pd.DataFrame) -> nx.DiGraph:
+def threshold_transform_matrix(
+    weight_matrix: pd.DataFrame, score_series: pd.Series, threshold: float
+) -> pd.DataFrame:
     """
-    Construct a directed graph with 'weight' attribute on edges.
+    For each gene with score >= threshold, scale outgoing edge weights (rows).
     """
-    G = nx.DiGraph()
-    for source_gene, target_gene, weight in zip(
-        network_df["regulatoryGene"], network_df["targetGene"], network_df["weight"]
-    ):
-        G.add_edge(source_gene, target_gene, weight=weight)
-    return G
+    weight_matrix_out = weight_matrix.copy()
+
+    # Create a series aligned with the weight matrix index, filling missing genes with 0
+    aligned_scores = score_series.reindex(weight_matrix.index, fill_value=0.0)
+
+    # Vectorized computation: handle NaN values and compute fractions
+    valid_mask = ~np.isnan(aligned_scores) & (aligned_scores >= threshold)
+    fractions = np.zeros_like(aligned_scores, dtype=float)
+    fractions[valid_mask] = np.clip(
+        (aligned_scores[valid_mask] - threshold) / (1.0 - threshold), 0.0, 1.0
+    )
+
+    # Vectorized scaling: multiply each row by (1 - fraction)
+    scaling_factors = 1.0 - fractions
+    weight_matrix_out = weight_matrix_out.multiply(scaling_factors, axis="index")
+
+    print("threshold_transform_matrix finished", flush=True)
+    return weight_matrix_out
 
 
-def threshold_transform_graph(
-    G: nx.DiGraph, score_series: pd.Series, threshold: float
-) -> nx.DiGraph:
+def sigmoid_transform_matrix(
+    weight_matrix: pd.DataFrame,
+    score_series: pd.Series,
+    steepness: float,
+    midpoint: float,
+) -> pd.DataFrame:
     """
-    For each node with score >= threshold, scale outgoing edge weights.
+    For each gene, apply sigmoid-based scaling to outgoing edge weights (rows).
     """
-    G_out = G.copy()
-    for node, score in score_series.items():
-        if np.isnan(score) or score < threshold:
-            continue
-        frac = np.clip((score - threshold) / (1.0 - threshold), 0.0, 1.0)
-        for _, tgt, data in G_out.out_edges(node, data=True):  # type: ignore
-            data["weight"] *= 1.0 - frac
-    return G_out  # type: ignore
+    weight_matrix_out = weight_matrix.copy()
+
+    # Create a series aligned with the weight matrix index, filling missing genes with 0
+    aligned_scores = score_series.reindex(weight_matrix.index, fill_value=0.0)
+
+    # Vectorized sigmoid computation: handle NaN values
+    valid_mask = ~np.isnan(aligned_scores)
+    fractions = np.zeros_like(aligned_scores, dtype=float)
+    fractions[valid_mask] = 1.0 / (
+        1.0 + np.exp(-steepness * (aligned_scores[valid_mask] - midpoint))
+    )
+
+    # Vectorized scaling: multiply each row by (1 - fraction)
+    scaling_factors = 1.0 - fractions
+    weight_matrix_out = weight_matrix_out.multiply(scaling_factors, axis="index")
+
+    print("sigmoid_transform_matrix finished", flush=True)
+    return weight_matrix_out
 
 
-def sigmoid_transform_graph(
-    G: nx.DiGraph, score_series: pd.Series, steepness: float, midpoint: float
-) -> nx.DiGraph:
-    """
-    For each node, apply sigmoid-based scaling to outgoing edge weights.
-    """
-    G_out = G.copy()
-    for node, score in score_series.items():
-        if np.isnan(score):
-            continue
-        frac = 1.0 / (1.0 + np.exp(-steepness * (score - midpoint)))
-        for _, tgt, data in G_out.out_edges(node, data=True):  # type: ignore
-            data["weight"] *= 1.0 - frac
-    return G_out  # type: ignore
-
-
-def propagate_effects_graph(
-    G: nx.DiGraph, score_series: pd.Series, steps: int
+def propagate_effects_matrix(
+    weight_matrix: pd.DataFrame, score_series: pd.Series, steps: int
 ) -> pd.Series:
     """
-    Propagate initial scores through graph adjacency weights.
-    Returns a series of cumulative perturbation per node.
+    Propagate initial scores through matrix multiplication.
+    Returns a series of cumulative perturbation per gene.
     """
-    nodes = list(G.nodes)
-    propagated = pd.Series({n: score_series.get(n, 0.0) for n in nodes})
+    # Ensure all genes in the matrix are represented in the propagated series
+    all_genes = weight_matrix.index.union(weight_matrix.columns)
+    propagated = pd.Series({gene: score_series.get(gene, 0.0) for gene in all_genes})
+
     for _ in range(steps):
-        propagated_next = pd.Series(0.0, index=nodes)
-        for source_gene, target_gene, data in G.edges(data=True):
-            propagated_next[target_gene] += propagated[source_gene] * data["weight"]
-        propagated += propagated_next
+        # Matrix multiplication: propagated values flow through edges
+        # weight_matrix.T because we want to multiply by the transpose
+        # (target genes as rows, source genes as columns)
+        propagated_next = weight_matrix.T.dot(
+            propagated.reindex(weight_matrix.index, fill_value=0.0)
+        )
+        propagated = propagated.add(propagated_next, fill_value=0.0)
+
+    print("propagate_effects_matrix finished", flush=True)
     return propagated
 
 
-def update_graph_weights_with_propagation(
-    G_original: nx.DiGraph, propagated: pd.Series
-) -> nx.DiGraph:
+def update_matrix_weights_with_propagation(
+    weight_matrix_original: pd.DataFrame, propagated: pd.Series
+) -> pd.DataFrame:
     """
-    Scale each node's outgoing edges by (1 - propagated[node]).
+    Scale each gene's outgoing edges (rows) by (1 - propagated[gene]).
     """
-    G_out = G_original.copy()
-    for node in G_out.nodes:
-        # if not in path we are just multiplying by 1!
-        factor = 1.0 - propagated.get(node, 0.0)
-        for _, tgt, data in G_out.out_edges(node, data=True):  # type: ignore
-            data["weight"] *= factor
-    return G_out  # type: ignore
+    weight_matrix_out = weight_matrix_original.copy()
 
+    # Create a series aligned with the weight matrix index, filling missing genes with 0
+    aligned_propagated = propagated.reindex(
+        weight_matrix_original.index, fill_value=0.0
+    )
 
-def save_graph_results(G: nx.DiGraph, output_path: str):
-    """
-    Write edge list with weights to file.
-    """
-    rows = [(src, tgt, data["weight"]) for src, tgt, data in G.edges(data=True)]
-    out_df = pd.DataFrame(rows, columns=["regulatoryGene", "targetGene", "weight"])
-    out_df.to_csv(output_path, sep="\t", index=False, header=True)
+    # Vectorized scaling: multiply each row by (1 - propagated_value)
+    scaling_factors = 1.0 - aligned_propagated
+    weight_matrix_out = weight_matrix_out.multiply(scaling_factors, axis="index")
+
+    print("update_matrix_weights_with_propagation finished", flush=True)
+    return weight_matrix_out
 
 
 def main():
-    # Load parameters
-    steps = snakemake.params.get("steps", 2)
-    steepness = snakemake.params.get("steepness", 10.0)
-    midpoint = snakemake.params.get("midpoint", 0.5)
-    threshold_value = snakemake.params.get("threshold", 0.6)
+    # Access parameters directly from config
+    perturb_config = snakemake.config["perturbation_algorithm"]
 
-    # Debug flag
-    debug = snakemake.params.get("debug", False)
-    if debug:
-        method = (
-            snakemake.params.get("pathogenicity_score_transform_method", "threshold")
-            .strip()
-            .lower()
-        )
-        logger.setLevel(logging.DEBUG)
-        logger.debug(
-            "Parameters: steps=%s, method=%s, threshold=%s, steepness=%s, midpoint=%s",
-            steps,
-            method,
-            threshold_value,
-            steepness,
-            midpoint,
-        )
-    else:
-        method = (
-            snakemake.params.get("pathogenicity_score_transform_method", "threshold")
-            .strip()
-            .lower()
-        )
+    steps = perturb_config.get("steps")
+    method = perturb_config.get("score_transform")
 
     # Load file paths
-    genie3_links_path = snakemake.input["genie3_links"]
+    genie3_weights_file_path = snakemake.input["genie3_weights"]
     am_scores_path = snakemake.input["am_scores"]
     perturb_list_path = snakemake.input["perturbations_list"]
-    output_path = snakemake.output["scores"]
+    output_path = snakemake.output["perturbed_weights"]
 
-    # Load data
-    network_df = pd.read_csv(genie3_links_path, sep="\t")
+    # Load weight matrix from TSV
+    weight_matrix = pd.read_csv(genie3_weights_file_path, sep="\t", index_col=0)
+
     am_df = pd.read_csv(am_scores_path, sep="\t")
     perturb_df = pd.read_csv(perturb_list_path, sep="\t")
+
     # Filter AM scores to only those gene-variant pairs
     sel = am_df.merge(perturb_df, on=["gene", "variant"])
     # Build score series indexed by gene; exact variants, no aggregation
     S_series = sel.set_index("gene")["score"]
 
-    G = build_graph(network_df)
+    print("Beginning perturbation algorithm...", flush=True)
+
     if method == "threshold":
-        G_scaled = threshold_transform_graph(G, S_series, threshold_value)
+        threshold_value = perturb_config.get("threshold")
+        weight_matrix_scaled = threshold_transform_matrix(
+            weight_matrix, S_series, threshold_value
+        )
     elif method == "sigmoid":
-        G_scaled = sigmoid_transform_graph(G, S_series, steepness, midpoint)
+        steepness = perturb_config.get("steepness")
+        midpoint = perturb_config.get("midpoint")
+        weight_matrix_scaled = sigmoid_transform_matrix(
+            weight_matrix, S_series, steepness, midpoint
+        )
     else:
         raise ValueError(f"Unknown method: {method}")
 
-    if debug:
-        # Log number of modified edges
-        original_edge_count = G.number_of_edges()
-        scaled_edge_count = sum(
-            1
-            for _, _, data in G_scaled.edges(data=True)
-            if data["weight"] != G.get_edge_data(_, _, default={}).get("weight")
-        )
-        logger.debug(
-            "Scaled edges: %s out of %s", scaled_edge_count, original_edge_count
-        )
+    propagated_series = propagate_effects_matrix(weight_matrix_scaled, S_series, steps)
 
-    propagated_series = propagate_effects_graph(G_scaled, S_series, steps)
+    weight_matrix_final = update_matrix_weights_with_propagation(
+        weight_matrix, propagated_series
+    )
 
-    if debug:
-        logger.debug("Propagated series head:\n%s", propagated_series.head().to_dict())
-
-    G_final = update_graph_weights_with_propagation(G, propagated_series)
-    save_graph_results(G_final, output_path)
+    # Export weight matrix to TSV
+    weight_matrix_final.to_csv(output_path, sep="\t", index=True)
+    print(f"Weight matrix TSV written to {output_path}", flush=True)
 
 
 if __name__ == "__main__":

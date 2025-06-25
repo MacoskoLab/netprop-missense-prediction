@@ -3,68 +3,41 @@ configfile: "config/config_local.yml"
 
 
 import sys
+import os
 
 sys.path.append("pipeline_utils")
 from pipeline_utils import create_run_name, copy_config_to_run, send_email
 
-# Directory structure variables
-SCRIPTS_DIR = "scripts"
-ENVS_DIR = "envs"
-NOTEBOOKS_DIR = "notebooks"
-RULES_DIR = "rules"
+# Directory structure variables - dynamically determined as absolute paths
+WORKFLOW_DIR = os.path.dirname(os.path.abspath(workflow.snakefile))
+SCRIPTS_DIR = os.path.join(WORKFLOW_DIR, "scripts")
+ENVS_DIR = os.path.join(WORKFLOW_DIR, "envs")
+NOTEBOOKS_DIR = os.path.join(WORKFLOW_DIR, "notebooks")
+RULES_DIR = os.path.join(WORKFLOW_DIR, "rules")
 
 # Create run name
 run = create_run_name(config)
 print(f"########### RUN NAME: {run} ###########", flush=True)
 
 
-# Include rule files
-include: f"{RULES_DIR}/preprocessing/run_genie3.smk"
-include: f"{RULES_DIR}/perturbation/simple_perturb_algo.smk"
-include: f"{RULES_DIR}/evaluation/geneRNIB_evaluation.smk"
-include: f"{RULES_DIR}/evaluation/simple_network_evaluation.smk"
-include: f"{RULES_DIR}/evaluation/mock_perturbation_evaluation.smk"
+# Include rule files using wildcards
+import glob
+
+for rule_file in glob.glob(f"{RULES_DIR}/*/*.smk"):
+    if "_legacy" not in rule_file:
+        print(f"Including rule file: {rule_file}", flush=True)
+
+        include: rule_file
 
 
-# Target rules for different pipeline components
-rule genie3:
-    """Run GENIE3 network inference"""
+# Define the main workflow
+rule all:
     input:
-        f"results/{run}/preprocessing/real_unperturbed_network.tsv",
-        f"results/{run}/preprocessing/real_perturbed_network.tsv",
-
-
-rule perturbation:
-    """Run perturbation algorithm"""
-    input:
-        f"results/{run}/perturbation/predicted_perturbed_network.tsv",
-
-
-rule evaluation_network_comparison:
-    """Run network comparison evaluation"""
-    input:
-        f"results/{run}/evaluation/network_comparison/network_comparison.tsv",
-        f"results/{run}/evaluation/network_comparison/figs/",
-
-
-rule evaluation_edge_weight_analysis:
-    """Run edge weight analysis evaluation"""
-    input:
-        f"results/{run}/evaluation/edge_weight_analysis/edge_weight_difference_comparison.tsv",
-        f"results/{run}/evaluation/edge_weight_analysis/figs/",
-
-
-rule evaluation_geneRNIB:
-    """Run geneRNIB evaluation"""
-    input:
-        f"results/{run}/evaluation/geneRNIB/geneRNIB_scores.yaml",
-
-
-rule evaluation_mock_perturbation:
-    """Run mock perturbation evaluation"""
-    input:
-        f"results/{run}/evaluation/mock_perturbation/edge_weight_difference_comparison.tsv",
-        f"results/{run}/evaluation/mock_perturbation/figs/",
+        expand(
+            f"results/{run}/evaluation/weight_matrices_distances_plot.{{ext}}",
+            ext=["jpeg", "html"],
+        ),
+    default_target: True
 
 
 # Workflow event handlers
@@ -74,7 +47,7 @@ onstart:
 
 onsuccess:
     send_email(
-        f"Workflow run {run} completed successfully.",
+        f"Workflow run {run} completed successfully. Great success!",
         subject=f"[snakemake] Workflow SUCCEEDED ({run})",
         config=config,
     )
@@ -82,7 +55,7 @@ onsuccess:
 
 onerror:
     send_email(
-        f"Workflow run {run} failed. Check the logs for details.",
+        f"Workflow run {run} failed. Check the logs for details. Wawaweewa...",
         subject=f"[snakemake] Workflow FAILED ({run})",
         config=config,
     )

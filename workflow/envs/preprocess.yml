@@ -4,6 +4,11 @@ channels:
   - nodefaults
 dependencies:
   - python=3.10
+  - scanpy
+  - anndata
   - pandas
-  - requests
-  - tqdm
+  - numpy
+  - python-igraph
+  - leidenalg
+  - pytables
+  - h5py

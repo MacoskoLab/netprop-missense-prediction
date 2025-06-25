@@ -1,6 +1,7 @@
 #!/bin/bash
-
+#
 # Simple pipeline runner - just activate conda and call snakemake
+#
 
 set -euo pipefail
 

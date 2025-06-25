@@ -1,30 +1,47 @@
 run_name: "check_new_config"
-run_number: 1
-
+run_number: 3
+input_data:
+  gene_expression_matrix: "resources/GSE158067/GSE158067_gene_exp_mtx.txt" # Path to the gene expression matrix
+  cell_metadata: "resources/GSE158067/GSE158067_cell_to_perturbation.tsv" # Path to the cell metadata file with mutation information
 # Parameters for the Genie3 algorithm
-genie3_params:
-  real_unperturbed_gene_expr: "resources/GSE158067/GSE158067_gene_exp_mtx_filtered_wt.txt"  # unperturbed gene expression matrix
-  real_perturbed_gene_expr: "resources/GSE158067/GSE158067_gene_exp_mtx_filtered_mt.txt"  # perturbed gene expression matrix
-  tree_method: "RF"  # options: "ET", "RF" (default is "RF")
-  K: "sqrt"  # default is 1000
-  n_trees: 1  # default is 1000
-  
-  # Link filtering parameters
-  link_filtering_method: "top_n_links"  # options: "top_n_links", "threshold"
-  top_n_links: 20000  # Number of top-ranked links to report (used when link_filtering_method = "top_n_links")
-  threshold: 0.1  # Weight threshold for links (used when link_filtering_method = "threshold")
-
+genie3:
+  tree_method: "RF" # options: "ET", "RF" (default is "RF")
+  K: "sqrt" # default is 1000
+  n_trees: 1 # default is 1000
+  verbose: true # Enable verbose output
+# Parameters for comprehensive single-cell preprocessing
+single_cell_preprocessing:
+  # HVG identification parameters
+  min_mean: 0.0125 # Minimum mean expression for HVG selection
+  max_mean: 3.0 # Maximum mean expression for HVG selection
+  min_disp: 0.5 # Minimum normalized dispersion for HVG selection
+  n_top_genes: null # Number of top variable genes to select (null to use dispersion cutoffs)
+  # Quality control parameters
+  min_genes: 200 # Minimum number of genes expressed per cell
+  min_cells: 3 # Minimum number of cells expressing each gene
+  max_genes: 5000 # Maximum number of genes per cell (filter potential doublets)
+  mt_threshold: 20 # Maximum percentage of mitochondrial genes per cell
+  # Normalization parameters
+  target_sum: 10000 # Target sum for normalization (counts per cell)
+  # Scaling parameters
+  max_value: 10 # Maximum value after scaling
+  # PCA parameters
+  n_comps: 50 # Number of principal components
+  # Clustering parameters
+  n_neighbors: 5 # Number of neighbors for neighborhood graph
+  n_pcs: 40 # Number of PCs to use for neighborhood graph
+  resolution: 1 # Resolution for Leiden clustering
 # Parameters for the AlphaMissense API
-am_params:
-  variants: "resources/GSE158067/GSE158067_mutations_CH02_CH04.txt"  # file with variants that we need AM scores for
-
+alphamissense_api:
+  variants: "resources/GSE158067/GSE158067_mutations_CH02_CH04.txt" # file with variants that we need AM scores for
 # Parameters for the perturbation prediction
-perturb_params:
+perturbation_algorithm:
   # list of perturbations (genes, missense mutations) that we want to predict the effect of
+  # For now this is just one mutation
   perturbations_list: "resources/GSE158067/GSE158067_mutations_CH02_CH04.txt"
-  steps: 3
-  pathogenicity_score_transform_method: "threshold"  # options: "threshold", "sigmoid"
-  threshold: 0.6  # for threshold method
-  steepness: 10.0  # for sigmoid method
-  midpoint: 0.5  # for sigmoid method
-  debug: true  # set to true to print debug information
+  steps: 2 # Number of steps to propagate the perturbation prediction algorithm
+  score_transform: "threshold" # options: "threshold", "sigmoid"
+  threshold: 0.6 # for threshold method
+  steepness: 10.0 # for sigmoid method
+  midpoint: 0.5 # for sigmoid method
+  debug: true # set to true to print debug information

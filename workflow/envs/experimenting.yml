@@ -16,3 +16,8 @@ dependencies:
   - networkx
   - scipy
   - openpyxl
+  - pytables
+  - bioconductor-rhdf5
+  - r-base
+  - r-doparallel
+  - r-doRNG
