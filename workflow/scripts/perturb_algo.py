@@ -14,7 +14,7 @@ def threshold_transform_matrix(
     weight_matrix: pd.DataFrame, gene: str, score: float, threshold: float
 ) -> pd.DataFrame:
     """
-    For the specified gene with score >= threshold, scale its outgoing edge weights (row).
+    For the specified gene with score >= threshold, scale the entire weight matrix.
     """
     weight_matrix_out = weight_matrix.copy()
 
@@ -22,7 +22,7 @@ def threshold_transform_matrix(
     if score >= threshold:
         fraction = np.clip((score - threshold) / (1.0 - threshold), 0.0, 1.0)
         scaling_factor = 1.0 - fraction
-        weight_matrix_out.loc[gene] *= scaling_factor
+        weight_matrix_out *= scaling_factor
 
     return weight_matrix_out
 
@@ -35,13 +35,13 @@ def sigmoid_transform_matrix(
     midpoint: float,
 ) -> pd.DataFrame:
     """
-    For the specified gene, apply sigmoid-based scaling to its outgoing edge weights (row).
+    Apply sigmoid scaling to the entire weight matrix based on the gene score.
     """
     weight_matrix_out = weight_matrix.copy()
 
     fraction = 1.0 / (1.0 + np.exp(-steepness * (score - midpoint)))
     scaling_factor = 1.0 - fraction
-    weight_matrix_out.loc[gene] *= scaling_factor
+    weight_matrix_out *= scaling_factor
 
     return weight_matrix_out
 
