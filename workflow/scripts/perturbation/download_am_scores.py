@@ -6,12 +6,10 @@ if TYPE_CHECKING:
     snakemake: Snakemake
     snakemake = None  # type: ignore
 
-import sys
 from io import StringIO
 
 import pandas as pd
 import requests
-from tqdm import tqdm
 
 
 def get_uniprot_id(
@@ -56,9 +54,7 @@ sample_df = pd.read_csv(variants_list, sep="\t")
 
 results = []
 cache = {}
-for idx, row in tqdm(
-    sample_df.iterrows(), total=sample_df.shape[0], desc="Downloading AM scores"
-):
+for idx, row in sample_df.iterrows():
     gene = row[0]
     variant = row[1]
     cache_key = (gene, variant)

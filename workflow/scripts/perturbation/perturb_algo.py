@@ -156,9 +156,9 @@ def main():
         weight_matrix, propagated_series
     )
 
-    # Export weight matrix to TSV
-    weight_matrix_final.to_csv(output_path, sep="\t", index=True)
-    print(f"Weight matrix TSV written to {output_path}", flush=True)
+    # Export weight matrix
+    weight_matrix_final.to_hdf(output_path, key="weight_matrix", mode="w")
+    print(f"Weight matrix written to {output_path}", flush=True)
 
 
 if __name__ == "__main__":

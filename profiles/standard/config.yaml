@@ -1,5 +1,5 @@
 use-conda: true
-cores: 1
+cores: 50
 printshellcmds: true
 show-failed-logs: true
 keep-going: false

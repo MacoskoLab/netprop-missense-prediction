@@ -8,6 +8,9 @@ rule preprocess_expr_data:
     input:
         expr=config["input_data"]["gene_expression_matrix"],
         metadata=config["input_data"]["cell_metadata"],
+        perturbations_list=lambda wildcards: config["perturbation_algorithm"][
+            "perturbations_list"
+        ],
     output:
         real_unperturbed_processed_expr=f"results/{run}/preprocessing/real_unperturbed_preprocessed_expr.tsv",
         real_perturbed_processed_expr=f"results/{run}/preprocessing/real_perturbed_preprocessed_expr.tsv",

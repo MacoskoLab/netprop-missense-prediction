@@ -21,7 +21,7 @@ from scipy.spatial.distance import euclidean
 from scipy.stats import energy_distance, wasserstein_distance
 
 
-def compute_distance_metrics(matrix1, matrix2):
+def compute_distance_metrics(matrix1_fp, matrix2_fp, name1, name2):
     """
     Compute distance metrics between two weight matrices.
 
@@ -31,11 +31,16 @@ def compute_distance_metrics(matrix1, matrix2):
     Returns:
         dict: Dictionary with euclidean, wasserstein, and energy distances
     """
+    matrix1 = load_matrix(matrix1_fp, name1).fillna(0)
+    matrix2 = load_matrix(matrix2_fp, name2).fillna(0)
+
+    print(f"Comparing matrices: {name1} vs {name2}")
+
     # Check that matrices have exactly the same row indices (genes)
     if not matrix1.index.equals(matrix2.index):
         raise ValueError(
             f"Matrices have different row genes. "
-            f"Matrix1 has {len(matrix1.index)} genes, Matrix2 has {len(matrix2.index)} genes. "
+            f"{name1} has {len(matrix1.index)} genes, {name2} has {len(matrix2.index)} genes. "
             f"Row genes must be identical."
         )
 
@@ -43,17 +48,17 @@ def compute_distance_metrics(matrix1, matrix2):
     if not matrix1.columns.equals(matrix2.columns):
         raise ValueError(
             f"Matrices have different column genes. "
-            f"Matrix1 has {len(matrix1.columns)} genes, Matrix2 has {len(matrix2.columns)} genes. "
+            f"{name1} has {len(matrix1.columns)} genes, {name2} has {len(matrix2.columns)} genes. "
             f"Column genes must be identical."
         )
 
     # Check for NaN values in matrix1
     if matrix1.isna().any().any():
-        raise ValueError("Matrix1 contains NaN values. All values must be numeric.")
+        print(f"WARNING: {name1} contains NaN values.")
 
     # Check for NaN values in matrix2
     if matrix2.isna().any().any():
-        raise ValueError("Matrix2 contains NaN values. All values must be numeric.")
+        print(f"WARNING: {name2} contains NaN values.")
 
     # Flatten matrices for distance computation
     m1_flat = matrix1.values.flatten()
@@ -71,23 +76,25 @@ def compute_distance_metrics(matrix1, matrix2):
     }
 
 
-def load_weight_matrices(matrix_files):
+def load_matrix(filepath, matrix_name) -> pd.DataFrame:
     """
-    Load weight matrices from a list of file paths.
+    Read a weight matrix from a file.
 
     Args:
-        matrix_files (list): List of file paths to weight matrices.
+        filepath (str): Path to the file containing the weight matrix.
 
     Returns:
-        dict: Dictionary with matrix names as keys and DataFrames as values.
+        pd.DataFrame: DataFrame containing the weight matrix.
     """
-    matrices = {}
-    for filepath in matrix_files:
-        matrix_name = os.path.splitext(os.path.basename(filepath))[0]
-        print(f"Loading matrix: {matrix_name} from {filepath}")
-        # Only TSV inputs
-        matrices[matrix_name] = pd.read_csv(filepath, sep="\t", index_col=0, header=0)
-    return matrices
+    print(f"Loading matrix: {matrix_name} from {filepath}")
+    if filepath.endswith(".h5"):
+        return pd.read_hdf(filepath, key="weight_matrix", mode="r")  # type: ignore
+    elif filepath.endswith(".tsv") or filepath.endswith(".txt"):
+        return pd.read_csv(filepath, sep="\t", index_col=0, header=0)
+    else:
+        raise ValueError(
+            f"Unsupported file format for {filepath}. Only .h5, .tsv, or .txt are supported."
+        )
 
 
 def compare_matrices(matrices):
@@ -101,8 +108,8 @@ def compare_matrices(matrices):
         list: List of dictionaries with comparison results.
     """
     results = []
-    for (name1, matrix1), (name2, matrix2) in combinations(matrices.items(), 2):
-        metrics = compute_distance_metrics(matrix1, matrix2)
+    for (name1, matrix1), (name2, matrix2) in combinations(matrices, 2):
+        metrics = compute_distance_metrics(matrix1, matrix2, name1, name2)
         results.append({"matrix1": name1, "matrix2": name2, **metrics})
     return results
 
@@ -112,8 +119,11 @@ def main():
     matrix_files = snakemake.input.matrices
     output_file = snakemake.output.results
 
-    # Load all matrices
-    matrices = load_weight_matrices(matrix_files)
+    matrices = [
+        (os.path.splitext(os.path.basename(matrix_file))[0], matrix_file)
+        for matrix_file in matrix_files
+    ]
+    print(f"Comparing {len(matrices)} matrices: {[name for name, _ in matrices]}")
     results = compare_matrices(matrices)
 
     # Create output DataFrame

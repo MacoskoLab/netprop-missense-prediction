@@ -1,4 +1,4 @@
-rule evaluate_all_weight_matrices:
+rule compute_all_weight_matrices_distances:
     """
     Evaluate all weight matrices against each other using multiple distance metrics:
     - Euclidean distance
@@ -12,7 +12,7 @@ rule evaluate_all_weight_matrices:
         matrices=[
             f"results/{run}/perturbation/real_unperturbed_weights.tsv",
             f"results/{run}/perturbation/real_perturbed_weights.tsv",
-            f"results/{run}/perturbation/predicted_perturbed_weights.tsv",
+            f"results/{run}/perturbation/predicted_perturbed_weights.h5",
         ],
     output:
         results=f"results/{run}/evaluation/weight_matrices_comparison.tsv",
@@ -42,6 +42,6 @@ rule plot_weight_matrices_distances:
             subcategory="Distance Metrics",
         ),
     conda:
-        f"{ENVS_DIR}/evaluation.yml"
+        f"{ENVS_DIR}/plotting.yml"
     script:
         f"{SCRIPTS_DIR}/evaluation/plot_weight_matrices_distances.py"

@@ -1,5 +1,5 @@
-run_name: "check_new_config"
-run_number: 3
+run_name: "real_1000_trees"
+run_number: null
 input_data:
   gene_expression_matrix: "resources/GSE158067/GSE158067_gene_exp_mtx.txt" # Path to the gene expression matrix
   cell_metadata: "resources/GSE158067/GSE158067_cell_to_perturbation.tsv" # Path to the cell metadata file with mutation information
@@ -7,13 +7,19 @@ input_data:
 genie3:
   tree_method: "RF" # options: "ET", "RF" (default is "RF")
   K: "sqrt" # default is 1000
-  n_trees: 1 # default is 1000
+  n_trees: 1000 # default is 1000
   verbose: true # Enable verbose output
 # Parameters for comprehensive single-cell preprocessing
 single_cell_preprocessing:
+  # Enable/disable preprocessing steps
+  enable_quality_control: false # Enable quality control filtering
+  enable_normalization: false # Enable normalization and log transformation
+  enable_hvg_identification: true # Enable highly variable gene identification
+  enable_scaling: false # Enable data scaling
+  enable_pseudobulk: false # Enable pseudobulk aggregation
   # HVG identification parameters
   min_mean: 0.0125 # Minimum mean expression for HVG selection
-  max_mean: 3.0 # Maximum mean expression for HVG selection
+  max_mean: 4.0 # Maximum mean expression for HVG selection
   min_disp: 0.5 # Minimum normalized dispersion for HVG selection
   n_top_genes: null # Number of top variable genes to select (null to use dispersion cutoffs)
   # Quality control parameters
@@ -25,9 +31,9 @@ single_cell_preprocessing:
   target_sum: 10000 # Target sum for normalization (counts per cell)
   # Scaling parameters
   max_value: 10 # Maximum value after scaling
-  # PCA parameters
+  # PCA parameters (for pseudobulk)
   n_comps: 50 # Number of principal components
-  # Clustering parameters
+  # Clustering parameters (for pseudobulk)
   n_neighbors: 5 # Number of neighbors for neighborhood graph
   n_pcs: 40 # Number of PCs to use for neighborhood graph
   resolution: 1 # Resolution for Leiden clustering

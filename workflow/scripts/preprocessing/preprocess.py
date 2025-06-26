@@ -43,7 +43,12 @@ def load_expression_matrix(filepath):
 
 
 def quality_control_filtering(
-    adata, min_genes=200, min_cells=3, max_genes=5000, mt_threshold=20
+    adata,
+    min_genes=200,
+    min_cells=3,
+    max_genes=5000,
+    mt_threshold=20,
+    protected_genes: set = set(),
 ):
     """
     Filter out low-quality cells and genes with low expression.
@@ -60,6 +65,8 @@ def quality_control_filtering(
         Maximum number of genes per cell (filter potential doublets)
     mt_threshold : float
         Maximum percentage of mitochondrial genes per cell (unused)
+    protected_genes : set
+        Set of gene names that should be protected from filtering
 
     Returns:
     --------
@@ -77,8 +84,52 @@ def quality_control_filtering(
     sc.pp.filter_cells(adata, min_genes=min_genes)
     sc.pp.filter_cells(adata, max_genes=max_genes)
 
-    # Filter genes expressed in too few cells
-    sc.pp.filter_genes(adata, min_cells=min_cells)
+    # Filter genes expressed in too few cells, but protect perturbation genes
+    if len(protected_genes) > 0:
+        print(
+            f"Protecting {len(protected_genes)} genes from filtering: {sorted(protected_genes)}"
+        )
+
+        # Find which protected genes are actually in the data
+        protected_genes_present = protected_genes.intersection(set(adata.var_names))
+        protected_genes_missing = protected_genes - protected_genes_present
+
+        if len(protected_genes_missing) > 0:
+            print(
+                f"Warning: {len(protected_genes_missing)} protected genes not found in expression data: {sorted(protected_genes_missing)}"
+            )
+
+        if len(protected_genes_present) > 0:
+            print(
+                f"Found {len(protected_genes_present)} protected genes in expression data: {sorted(protected_genes_present)}"
+            )
+
+            # Calculate which genes pass the min_cells filter
+            gene_counts = (adata.X > 0).sum(axis=0)
+            if hasattr(gene_counts, "A1"):  # Handle sparse matrices
+                gene_counts = gene_counts.A1
+
+            genes_pass_filter = gene_counts >= min_cells
+
+            # Mark protected genes as passing the filter regardless of their actual counts
+            protected_mask = np.array(
+                [gene in protected_genes_present for gene in adata.var_names]
+            )
+            genes_to_keep = genes_pass_filter | protected_mask
+
+            print(f"Regular filtering would keep {genes_pass_filter.sum()} genes")
+            print(
+                f"With protection, keeping {genes_to_keep.sum()} genes ({protected_mask.sum()} protected)"
+            )
+
+            # Apply the combined filter
+            adata = adata[:, genes_to_keep].copy()
+        else:
+            # No protected genes present, apply normal filtering
+            sc.pp.filter_genes(adata, min_cells=min_cells)
+    else:
+        # No protected genes specified, apply normal filtering
+        sc.pp.filter_genes(adata, min_cells=min_cells)
 
     print(f"After QC filtering: {adata.shape}")
     return adata
@@ -140,6 +191,20 @@ def identify_highly_variable_genes(
         AnnData object with HVG information
     """
     print("Identifying highly variable genes...")
+    print(f"Input data shape: {adata.shape}")
+    print(
+        f"HVG parameters: min_mean={min_mean}, max_mean={max_mean}, min_disp={min_disp}, n_top_genes={n_top_genes}"
+    )
+
+    # Ensure data is float type for HVG calculation
+    if adata.X.dtype != np.float32 and adata.X.dtype != np.float64:
+        print("Converting data to float64 for HVG calculation...")
+        adata.X = adata.X.astype(np.float64)
+
+    # Check data statistics before HVG calculation
+    print(
+        f"Data min: {adata.X.min():.4f}, max: {adata.X.max():.4f}, mean: {adata.X.mean():.4f}"
+    )
 
     # Find highly variable genes
     sc.pp.highly_variable_genes(
@@ -150,10 +215,25 @@ def identify_highly_variable_genes(
         n_top_genes=n_top_genes,
     )
 
-    n_hvgs = adata.var["highly_variable"].sum()
-    print(
-        f"Identified {n_hvgs} highly variable genes out of {adata.n_vars} total genes"
-    )
+    # Check if highly_variable column was created
+    if "highly_variable" in adata.var.columns:
+        n_hvgs = adata.var["highly_variable"].sum()
+        total_genes = adata.n_vars
+        print(
+            f"Identified {n_hvgs} highly variable genes out of {total_genes} total genes ({n_hvgs/total_genes*100:.1f}%)"
+        )
+
+        # Show some statistics
+        if n_hvgs > 0:
+            hvg_genes = adata.var[adata.var["highly_variable"]].index[
+                :10
+            ]  # Show first 10 HVG genes
+            print(f"Example HVG genes: {list(hvg_genes)}")
+        else:
+            print("Warning: No highly variable genes found with current parameters!")
+            print("Consider adjusting min_mean, max_mean, or min_disp parameters")
+    else:
+        print("Error: highly_variable column was not created!")
 
     return adata
 
@@ -318,7 +398,8 @@ def create_anndata_object(expr_df):
     print("Creating AnnData object")
 
     # Transpose so that cells are observations (rows) and genes are variables (columns)
-    adata = ad.AnnData(X=expr_df.T)
+    # Ensure data is float type for scanpy compatibility
+    adata = ad.AnnData(X=expr_df.T.astype(np.float64))
     adata.obs_names = expr_df.columns
     adata.var_names = expr_df.index
 
@@ -326,6 +407,8 @@ def create_anndata_object(expr_df):
     adata.var_names_make_unique()
 
     print(f"Created AnnData object with shape: {adata.shape} (cells x genes)")
+    if adata.X is not None:
+        print(f"Data type: {adata.X.dtype}")
     return adata
 
 
@@ -412,6 +495,81 @@ def filter_cells_by_genotype(adata, metadata, genotype):
     return adata_filtered
 
 
+def process_genotype_cells(
+    adata,
+    genotype,
+    output_path,
+    enable_scaling=True,
+    enable_pseudobulk=True,
+    max_value=10,
+    n_comps=50,
+    n_neighbors=10,
+    n_pcs=40,
+    resolution=0.5,
+):
+    """
+    Process cells of a specific genotype through scaling, PCA, clustering, and pseudobulk aggregation.
+
+    Parameters:
+    -----------
+    adata : anndata.AnnData
+        Input AnnData object filtered for specific genotype
+    genotype : str
+        Genotype being processed ('MT' or 'WT')
+    output_path : str
+        Path to save the output file
+    enable_scaling : bool
+        Whether to enable data scaling
+    enable_pseudobulk : bool
+        Whether to enable pseudobulk aggregation
+    max_value : float
+        Maximum value after scaling
+    n_comps : int
+        Number of principal components
+    n_neighbors : int
+        Number of neighbors for neighborhood graph
+    n_pcs : int
+        Number of PCs to use for neighborhood graph
+    resolution : float
+        Resolution for Leiden clustering
+
+    Returns:
+    --------
+    None
+        Saves processed data to output_path
+    """
+    print(f"\n=== Processing {genotype} cells ===")
+
+    # Scale, PCA, and cluster cells
+    if enable_scaling:
+        adata_scaled = scale_data(adata, max_value=max_value)
+    else:
+        print(f"Skipping data scaling for {genotype} cells")
+        adata_scaled = adata[:, adata.var.highly_variable].copy()
+
+    # Create pseudobulk profiles or save processed data
+    if enable_pseudobulk:
+        adata_scaled = run_pca(adata_scaled, n_comps=n_comps)
+        adata_scaled = cluster_cells(
+            adata_scaled, n_neighbors=n_neighbors, n_pcs=n_pcs, resolution=resolution
+        )
+        pseudobulk_data = create_pseudobulk(adata.raw.to_adata(), adata_scaled)
+        # Save pseudobulk matrix
+        print(f"Saving {genotype} pseudobulk matrix to {output_path}")
+        pseudobulk_data.to_csv(output_path, sep="\t", index=True)
+    else:
+        print(f"Skipping pseudobulk aggregation for {genotype} cells")
+        # Save the processed expression matrix instead
+        # Use pandas to handle the matrix conversion safely
+        expr_data = pd.DataFrame(
+            adata_scaled.to_df().T,
+            index=adata_scaled.var.index,
+            columns=adata_scaled.obs.index,
+        )
+        print(f"Saving {genotype} processed expression matrix to {output_path}")
+        expr_data.to_csv(output_path, sep="\t", index=True)
+
+
 def main():
     # Get parameters from Snakemake config
     input_expr = snakemake.input.expr
@@ -422,6 +580,16 @@ def main():
     # Access parameters directly from config
     preprocessing_config = snakemake.config["single_cell_preprocessing"]
 
+    # Step enable/disable flags
+    enable_quality_control = preprocessing_config.get("enable_quality_control", True)
+    enable_normalization = preprocessing_config.get("enable_normalization", True)
+    enable_hvg_identification = preprocessing_config.get(
+        "enable_hvg_identification", True
+    )
+    enable_scaling = preprocessing_config.get("enable_scaling", True)
+    enable_pseudobulk = preprocessing_config.get("enable_pseudobulk", True)
+
+    # HVG parameters
     min_mean = preprocessing_config["min_mean"]
     max_mean = preprocessing_config["max_mean"]
     min_disp = preprocessing_config["min_disp"]
@@ -456,62 +624,127 @@ def main():
     # Create AnnData object
     adata = create_anndata_object(expr_df)
 
-    # Step 1: Quality control filtering (applied to all cells)
-    adata = quality_control_filtering(
-        adata,
-        min_genes=min_genes,
-        min_cells=min_cells,
-        max_genes=max_genes,
-        mt_threshold=mt_threshold,
+    # Load perturbation genes that need to be protected during filtering
+    perturbations_file = snakemake.input.perturbations_list
+    protected_genes = set(
+        pd.read_csv(perturbations_file, sep="\t", index_col=None)["gene"]
     )
+
+    # Step 1: Quality control filtering (applied to all cells)
+    if enable_quality_control:
+        adata = quality_control_filtering(
+            adata,
+            min_genes=min_genes,
+            min_cells=min_cells,
+            max_genes=max_genes,
+            mt_threshold=mt_threshold,
+            protected_genes=protected_genes,
+        )
+    else:
+        print("Skipping quality control filtering")
 
     # Step 2: Normalize and log-transform (applied to all cells)
-    adata = normalize_and_log_transform(adata, target_sum=target_sum)
+    if enable_normalization:
+        adata = normalize_and_log_transform(adata, target_sum=target_sum)
+    else:
+        print("Skipping normalization and log transformation")
+        # If normalization is skipped, we still need to save raw data
+        adata.raw = adata
 
-    # Step 3: Identify highly variable genes (applied to all cells)
-    adata = identify_highly_variable_genes(
-        adata,
-        min_mean=min_mean,
-        max_mean=max_mean,
-        min_disp=min_disp,
-        n_top_genes=n_top_genes,
-    )
+    # Step 3: Highly variable gene identification
+    if enable_hvg_identification:
+        if enable_normalization:
+            print("Running HVG identification on normalized data")
+            adata = identify_highly_variable_genes(
+                adata,
+                min_mean=min_mean,
+                max_mean=max_mean,
+                min_disp=min_disp,
+                n_top_genes=n_top_genes,
+            )
+        else:
+            print("Running HVG identification on raw (unnormalized) data")
+            # Create a temporary copy for HVG calculation on raw data
+            adata_temp = adata.copy()
+
+            # Apply minimal normalization just for HVG calculation
+            # This doesn't affect the main data, just used for variance calculation
+            sc.pp.normalize_total(adata_temp, target_sum=target_sum)
+            sc.pp.log1p(adata_temp)
+
+            # Calculate HVGs on the temporary normalized data
+            adata_temp = identify_highly_variable_genes(
+                adata_temp,
+                min_mean=min_mean,
+                max_mean=max_mean,
+                min_disp=min_disp,
+                n_top_genes=n_top_genes,
+            )
+
+            # Transfer the HVG information back to the original (unnormalized) data
+            adata.var["highly_variable"] = adata_temp.var["highly_variable"]
+            if "highly_variable_rank" in adata_temp.var.columns:
+                adata.var["highly_variable_rank"] = adata_temp.var[
+                    "highly_variable_rank"
+                ]
+            if "highly_variable_nbatches" in adata_temp.var.columns:
+                adata.var["highly_variable_nbatches"] = adata_temp.var[
+                    "highly_variable_nbatches"
+                ]
+
+            print(
+                "HVG identification completed on raw data (using temporary normalization for calculation only)"
+            )
+    else:
+        print("Skipping highly variable gene identification")
+        # If HVG identification is skipped, mark all genes as highly variable
+        adata.var["highly_variable"] = True
+
+    # Ensure perturbation genes are always marked as highly variable
+    if len(protected_genes) > 0:
+        protected_genes_present = protected_genes.intersection(set(adata.var_names))
+        if len(protected_genes_present) > 0:
+            print(
+                f"Ensuring {len(protected_genes_present)} perturbation genes are marked as highly variable"
+            )
+            for gene in protected_genes_present:
+                adata.var.loc[gene, "highly_variable"] = True
+
+            # Report final HVG counts
+            n_hvgs = adata.var["highly_variable"].sum()
+            print(
+                f"Final count: {n_hvgs} highly variable genes (including {len(protected_genes_present)} protected genes)"
+            )
 
     # Process WT cells (unperturbed)
-    print("\n=== Processing WT (unperturbed) cells ===")
     adata_wt = filter_cells_by_genotype(adata, metadata, "WT")
-
-    # Scale, PCA, and cluster WT cells
-    adata_wt_scaled = scale_data(adata_wt, max_value=max_value)
-    adata_wt_scaled = run_pca(adata_wt_scaled, n_comps=n_comps)
-    adata_wt_scaled = cluster_cells(
-        adata_wt_scaled, n_neighbors=n_neighbors, n_pcs=n_pcs, resolution=resolution
+    process_genotype_cells(
+        adata_wt,
+        genotype="WT (unperturbed)",
+        output_path=output_wt,
+        enable_scaling=enable_scaling,
+        enable_pseudobulk=enable_pseudobulk,
+        max_value=max_value,
+        n_comps=n_comps,
+        n_neighbors=n_neighbors,
+        n_pcs=n_pcs,
+        resolution=resolution,
     )
-
-    # Create pseudobulk profiles for WT
-    pseudobulk_wt = create_pseudobulk(adata_wt.raw.to_adata(), adata_wt_scaled)
-
-    # Save WT pseudobulk matrix
-    print(f"Saving WT pseudobulk matrix to {output_wt}")
-    pseudobulk_wt.to_csv(output_wt, sep="\t", index=True)
 
     # Process MT cells (perturbed)
-    print("\n=== Processing MT (perturbed) cells ===")
     adata_mt = filter_cells_by_genotype(adata, metadata, "MT")
-
-    # Scale, PCA, and cluster MT cells
-    adata_mt_scaled = scale_data(adata_mt, max_value=max_value)
-    adata_mt_scaled = run_pca(adata_mt_scaled, n_comps=n_comps)
-    adata_mt_scaled = cluster_cells(
-        adata_mt_scaled, n_neighbors=n_neighbors, n_pcs=n_pcs, resolution=resolution
+    process_genotype_cells(
+        adata_mt,
+        genotype="MT (perturbed)",
+        output_path=output_mt,
+        enable_scaling=enable_scaling,
+        enable_pseudobulk=enable_pseudobulk,
+        max_value=max_value,
+        n_comps=n_comps,
+        n_neighbors=n_neighbors,
+        n_pcs=n_pcs,
+        resolution=resolution,
     )
-
-    # Create pseudobulk profiles for MT
-    pseudobulk_mt = create_pseudobulk(adata_mt.raw.to_adata(), adata_mt_scaled)
-
-    # Save MT pseudobulk matrix
-    print(f"Saving MT pseudobulk matrix to {output_mt}")
-    pseudobulk_mt.to_csv(output_mt, sep="\t", index=True)
 
     print("Single-cell preprocessing pipeline completed successfully!")
     print(f"Generated WT (unperturbed) file: {output_wt}")

@@ -2,6 +2,10 @@ configfile: "config/config.yml"
 configfile: "config/config_local.yml"
 
 
+# Config dependencies
+CONFIG_FILES = ["config/config.yml", "config/config_local.yml"]
+
+
 import sys
 import os
 
@@ -33,6 +37,7 @@ for rule_file in glob.glob(f"{RULES_DIR}/*/*.smk"):
 # Define the main workflow
 rule all:
     input:
+        CONFIG_FILES,  # Add config files as dependencies
         expand(
             f"results/{run}/evaluation/weight_matrices_distances_plot.{{ext}}",
             ext=["jpeg", "html"],

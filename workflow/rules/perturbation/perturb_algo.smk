@@ -19,7 +19,7 @@ rule simple_perturb_algo:
             "perturbations_list"
         ],
     output:
-        perturbed_weights=f"results/{run}/perturbation/predicted_perturbed_weights.tsv",
+        perturbed_weights=f"results/{run}/perturbation/predicted_perturbed_weights.h5",
     conda:
         f"{ENVS_DIR}/perturb.yml"
     script:
