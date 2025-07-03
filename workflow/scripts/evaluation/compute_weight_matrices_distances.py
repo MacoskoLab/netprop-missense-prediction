@@ -130,9 +130,7 @@ def main():
         match = re.search(r"predicted_perturbed_weights_(\d+)\.", filename)
         if match:
             combination_id = int(match.group(1))
-            matrix = load_matrix(matrix_fp)
-            print(f"Loaded matrix for combination {combination_id}")
-            predicted_perturbed_matrices.append((matrix, combination_id))
+            predicted_perturbed_matrices.append((matrix_fp, combination_id))
         else:
             raise ValueError(
                 f"Could not extract combination ID from filename: {filename}"
@@ -147,13 +145,13 @@ def main():
 
     comparison_results = []
 
-    for predicted_matrix, combination_id in predicted_perturbed_matrices:
+    for predicted_matrix_fp, combination_id in predicted_perturbed_matrices:
         print(f"Processing combination ID: {combination_id}")
         # Load matrices
         matrices = {
             "real_perturbed": real_perturbed,
             "real_unperturbed": real_unperturbed,
-            "predicted_perturbed": predicted_matrix,
+            "predicted_perturbed": load_matrix(predicted_matrix_fp),
         }
 
         # Compare matrices
