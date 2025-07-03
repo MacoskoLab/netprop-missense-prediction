@@ -1,5 +1,5 @@
-run_name: "grid_search_real"
-run_number: null
+run_name: "steps_1_to_100"
+run_number: 1
 
 input_data:
   gene_expression_matrix: "resources/GSE158067/GSE158067_gene_exp_mtx.txt" # Path to the gene expression matrix
@@ -9,7 +9,7 @@ input_data:
 genie3:
   tree_method: "RF" # options: "ET", "RF" (default is "RF")
   K: "sqrt" # default is 1000
-  n_trees: 1 # default is 1000
+  n_trees: 1000 # default is 1000
   verbose: true # Enable verbose output
 
 # Parameters for comprehensive single-cell preprocessing
@@ -50,17 +50,20 @@ perturbation_algorithm:
   # list of perturbations (genes, missense mutations) that we want to predict the effect of
   # For now this is just one mutation
   perturbations_list: "resources/GSE158067/GSE158067_mutations_CH02_CH04.txt"
-  debug: true # set to true to print debug information
+  verbose: false # Enable verbose output
 
   # Grid search parameters - lists of values to test
-  steps: [1, 2, 3] # Number of steps to propagate the perturbation prediction algorithm
+  steps: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100] # Number of steps to propagate the perturbation prediction algorithm
   score_transform: ["threshold", "sigmoid"] # Transform methods to test
 
   # Threshold-specific parameters (only used when score_transform = "threshold")
   threshold_params:
-    threshold: [0.5, 0.6, 0.7] # Threshold values to test
+    threshold: [0.6] # Threshold values to test
 
   # Sigmoid-specific parameters (only used when score_transform = "sigmoid")  
   sigmoid_params:
-    steepness: [5.0, 10.0, 15.0] # Steepness values to test
-    midpoint: [0.3, 0.5, 0.7] # Midpoint values to test
+    steepness: [10] # Steepness values to test
+    midpoint: [0.5] # Midpoint values to test
+
+evaluate:
+  verbose: false
