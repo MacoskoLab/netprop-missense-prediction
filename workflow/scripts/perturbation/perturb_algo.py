@@ -111,11 +111,18 @@ def update_matrix_weights_with_propagation(
 
 
 def main():
-    # Access parameters directly from config
-    perturb_config = snakemake.config["perturbation_algorithm"]
+    # Get combination ID from params
+    combination_id = int(snakemake.params["combination_id"])
 
-    steps = perturb_config.get("steps")
-    method = perturb_config.get("score_transform")
+    # Load combinations file to get parameters for this combination
+    combinations_df = pd.read_csv(snakemake.input["combinations"], sep="\t")
+    combination_row = combinations_df[
+        combinations_df["combination_id"] == combination_id
+    ].iloc[0]
+
+    # Extract parameters from the combination
+    steps = int(combination_row["steps"])
+    method = combination_row["score_transform"]
 
     # Load file paths
     genie3_weights_file_path = snakemake.input["genie3_weights"]
@@ -134,16 +141,25 @@ def main():
     # Build score series indexed by gene; exact variants, no aggregation
     S_series = sel.set_index("gene")["score"]
 
-    print("Beginning perturbation algorithm...", flush=True)
+    print(
+        f"Beginning perturbation algorithm for combination {combination_id}...",
+        flush=True,
+    )
+    print(f"Parameters: steps={steps}, method={method}", flush=True)
 
     if method == "threshold":
-        threshold_value = perturb_config.get("threshold")
+        threshold_value = combination_row["threshold"]
+        print(f"Threshold parameters: threshold={threshold_value}", flush=True)
         weight_matrix_scaled = threshold_transform_matrix(
             weight_matrix, S_series, threshold_value
         )
     elif method == "sigmoid":
-        steepness = perturb_config.get("steepness")
-        midpoint = perturb_config.get("midpoint")
+        steepness = combination_row["steepness"]
+        midpoint = combination_row["midpoint"]
+        print(
+            f"Sigmoid parameters: steepness={steepness}, midpoint={midpoint}",
+            flush=True,
+        )
         weight_matrix_scaled = sigmoid_transform_matrix(
             weight_matrix, S_series, steepness, midpoint
         )

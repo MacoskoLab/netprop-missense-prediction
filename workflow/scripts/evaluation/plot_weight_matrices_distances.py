@@ -57,14 +57,8 @@ def create_comparison_labels(df):
     return labels
 
 
-def plot_distances(df, jpeg_path, html_path):
+def plot_distances(df, jpeg_path, html_path, title_suffix=""):
     """Create a bar plot of distance metrics using Plotly."""
-    # Debug: Print dataframe info
-    print(f"DataFrame shape: {df.shape}")
-    print(f"DataFrame columns: {list(df.columns)}")
-    print("DataFrame contents:")
-    print(df)
-
     # Create comparison labels
     comparison_labels = create_comparison_labels(df)
     print(f"Comparison labels: {comparison_labels}")
@@ -149,7 +143,11 @@ def plot_distances(df, jpeg_path, html_path):
 
     # Update layout
     fig.update_layout(
-        title=dict(text="Edge Weight Difference Distance", x=0.5, font=dict(size=16)),
+        title=dict(
+            text=f"Edge Weight Difference Distance{title_suffix}",
+            x=0.5,
+            font=dict(size=16),
+        ),
         height=800,
         width=800,
         showlegend=False,
@@ -170,13 +168,13 @@ def plot_distances(df, jpeg_path, html_path):
 def main():
     # Get input and output files from snakemake
     distances_file = snakemake.input.distances
-    output_files = snakemake.output
+    output_dir = snakemake.output[0]  # Directory output
 
     print(f"Reading distances file: {distances_file}")
+    print(f"Output directory: {output_dir}")
 
-    # Extract JPEG and HTML paths from the output list
-    jpeg_output = [f for f in output_files if f.endswith(".jpeg")][0]
-    html_output = [f for f in output_files if f.endswith(".html")][0]
+    # Ensure output directory exists
+    os.makedirs(output_dir, exist_ok=True)
 
     # Load the distances data
     df = pd.read_csv(distances_file, sep="\t")
@@ -187,8 +185,63 @@ def main():
     print("\nDataframe dtypes:")
     print(df.dtypes)
 
-    # Create the plot
-    plot_distances(df, jpeg_output, html_output)
+    # Check if we have combination_id column for separate plots
+    if "combination_id" in df.columns:
+        # Group by combination_id and create separate plots
+        for combination_id in df["combination_id"].unique():
+            combination_df = df[df["combination_id"] == combination_id]
+
+            # Create output filenames for this combination
+            jpeg_path = os.path.join(
+                output_dir, f"combination_{combination_id}_distances.jpeg"
+            )
+            html_path = os.path.join(
+                output_dir, f"combination_{combination_id}_distances.html"
+            )
+
+            print(f"Creating plots for combination {combination_id}")
+            print(f"  JPEG: {jpeg_path}")
+            print(f"  HTML: {html_path}")
+
+            # Get parameter info for title if available
+            param_info = ""
+            if "score_transform" in combination_df.columns:
+                transform = combination_df["score_transform"].iloc[0]
+                steps = (
+                    combination_df["steps"].iloc[0]
+                    if "steps" in combination_df.columns
+                    else "N/A"
+                )
+                param_info = f" (Transformation: {transform}, Steps: {steps}"
+
+                if transform == "threshold" and "threshold" in combination_df.columns:
+                    threshold = combination_df["threshold"].iloc[0]
+                    param_info += f", Threshold: {threshold}"
+                elif (
+                    transform == "sigmoid"
+                    and "steepness" in combination_df.columns
+                    and "midpoint" in combination_df.columns
+                ):
+                    steepness = combination_df["steepness"].iloc[0]
+                    midpoint = combination_df["midpoint"].iloc[0]
+                    param_info += f", Steepness: {steepness}, Midpoint: {midpoint}"
+
+                param_info += ")"
+
+            # Create the plot with parameter info in title
+            plot_distances(
+                combination_df,
+                jpeg_path,
+                html_path,
+                title_suffix=f" - Combination {combination_id}<br>{param_info}",
+            )
+    else:
+        # Fallback: create a single plot for all data
+        jpeg_path = os.path.join(output_dir, "all_combinations_distances.jpeg")
+        html_path = os.path.join(output_dir, "all_combinations_distances.html")
+
+        print("No combination_id column found, creating single plot for all data")
+        plot_distances(df, jpeg_path, html_path)
 
 
 if __name__ == "__main__":

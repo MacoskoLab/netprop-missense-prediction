@@ -9,7 +9,7 @@ rule build_genie3_weights:
     output:
         weights=f"results/{run}/perturbation/real_{{state}}_weights.tsv",
     message:
-        f"Building Genie3 weight matrix for {{wildcards.state}} expression data."
+        f"Building GENIE3 weight matrix for {{wildcards.state}} expression data."
     benchmark:
         f"results/{run}/perturbation/benchmark_genie3_real_{{state}}_weights.txt"
     conda:

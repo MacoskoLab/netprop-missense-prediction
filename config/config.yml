@@ -1,14 +1,17 @@
-run_name: "real_1000_trees"
+run_name: "grid_search_real"
 run_number: null
+
 input_data:
   gene_expression_matrix: "resources/GSE158067/GSE158067_gene_exp_mtx.txt" # Path to the gene expression matrix
   cell_metadata: "resources/GSE158067/GSE158067_cell_to_perturbation.tsv" # Path to the cell metadata file with mutation information
+
 # Parameters for the Genie3 algorithm
 genie3:
   tree_method: "RF" # options: "ET", "RF" (default is "RF")
   K: "sqrt" # default is 1000
-  n_trees: 1000 # default is 1000
+  n_trees: 1 # default is 1000
   verbose: true # Enable verbose output
+
 # Parameters for comprehensive single-cell preprocessing
 single_cell_preprocessing:
   # Enable/disable preprocessing steps
@@ -37,17 +40,27 @@ single_cell_preprocessing:
   n_neighbors: 5 # Number of neighbors for neighborhood graph
   n_pcs: 40 # Number of PCs to use for neighborhood graph
   resolution: 1 # Resolution for Leiden clustering
+
 # Parameters for the AlphaMissense API
 alphamissense_api:
   variants: "resources/GSE158067/GSE158067_mutations_CH02_CH04.txt" # file with variants that we need AM scores for
+
 # Parameters for the perturbation prediction
 perturbation_algorithm:
   # list of perturbations (genes, missense mutations) that we want to predict the effect of
   # For now this is just one mutation
   perturbations_list: "resources/GSE158067/GSE158067_mutations_CH02_CH04.txt"
-  steps: 2 # Number of steps to propagate the perturbation prediction algorithm
-  score_transform: "threshold" # options: "threshold", "sigmoid"
-  threshold: 0.6 # for threshold method
-  steepness: 10.0 # for sigmoid method
-  midpoint: 0.5 # for sigmoid method
   debug: true # set to true to print debug information
+
+  # Grid search parameters - lists of values to test
+  steps: [1, 2, 3] # Number of steps to propagate the perturbation prediction algorithm
+  score_transform: ["threshold", "sigmoid"] # Transform methods to test
+
+  # Threshold-specific parameters (only used when score_transform = "threshold")
+  threshold_params:
+    threshold: [0.5, 0.6, 0.7] # Threshold values to test
+
+  # Sigmoid-specific parameters (only used when score_transform = "sigmoid")  
+  sigmoid_params:
+    steepness: [5.0, 10.0, 15.0] # Steepness values to test
+    midpoint: [0.3, 0.5, 0.7] # Midpoint values to test

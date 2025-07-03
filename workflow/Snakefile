@@ -5,12 +5,14 @@ configfile: "config/config_local.yml"
 # Config dependencies
 CONFIG_FILES = ["config/config.yml", "config/config_local.yml"]
 
-
 import sys
 import os
 
 sys.path.append("pipeline_utils")
 from pipeline_utils import create_run_name, copy_config_to_run, send_email
+
+run = create_run_name(config)
+print(f"########### RUN NAME: {run} ###########", flush=True)
 
 # Directory structure variables - dynamically determined as absolute paths
 WORKFLOW_DIR = os.path.dirname(os.path.abspath(workflow.snakefile))
@@ -18,11 +20,6 @@ SCRIPTS_DIR = os.path.join(WORKFLOW_DIR, "scripts")
 ENVS_DIR = os.path.join(WORKFLOW_DIR, "envs")
 NOTEBOOKS_DIR = os.path.join(WORKFLOW_DIR, "notebooks")
 RULES_DIR = os.path.join(WORKFLOW_DIR, "rules")
-
-# Create run name
-run = create_run_name(config)
-print(f"########### RUN NAME: {run} ###########", flush=True)
-
 
 # Include rule files using wildcards
 import glob
@@ -32,17 +29,6 @@ for rule_file in glob.glob(f"{RULES_DIR}/*/*.smk"):
         print(f"Including rule file: {rule_file}", flush=True)
 
         include: rule_file
-
-
-# Define the main workflow
-rule all:
-    input:
-        CONFIG_FILES,  # Add config files as dependencies
-        expand(
-            f"results/{run}/evaluation/weight_matrices_distances_plot.{{ext}}",
-            ext=["jpeg", "html"],
-        ),
-    default_target: True
 
 
 # Workflow event handlers
@@ -64,3 +50,11 @@ onerror:
         subject=f"[snakemake] Workflow FAILED ({run})",
         config=config,
     )
+
+
+# Define the main workflow
+rule all:
+    input:
+        CONFIG_FILES,  # Add config files as dependencies
+        f"results/{run}/evaluation/weight_matrices_distances_plots/",
+    default_target: True

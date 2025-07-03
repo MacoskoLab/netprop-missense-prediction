@@ -14,6 +14,8 @@ rule preprocess_expr_data:
     output:
         real_unperturbed_processed_expr=f"results/{run}/preprocessing/real_unperturbed_preprocessed_expr.tsv",
         real_perturbed_processed_expr=f"results/{run}/preprocessing/real_perturbed_preprocessed_expr.tsv",
+    message:
+        "Preprocessing single-cell expression data"
     conda:
         f"{ENVS_DIR}/preprocess.yml"
     script:
