@@ -21,3 +21,5 @@ dependencies:
   - r-base
   - r-doparallel
   - r-doRNG
+  - scanpy
+  - anndata

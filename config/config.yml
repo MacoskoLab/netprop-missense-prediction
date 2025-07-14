@@ -1,5 +1,5 @@
-run_name: "steps_1_to_100"
-run_number: 1
+run_name: "real_1000_trees"
+run_number: null
 
 input_data:
   gene_expression_matrix: "resources/GSE158067/GSE158067_gene_exp_mtx.txt" # Path to the gene expression matrix
@@ -50,20 +50,17 @@ perturbation_algorithm:
   # list of perturbations (genes, missense mutations) that we want to predict the effect of
   # For now this is just one mutation
   perturbations_list: "resources/GSE158067/GSE158067_mutations_CH02_CH04.txt"
-  verbose: false # Enable verbose output
+  debug: true # set to true to print debug information
 
   # Grid search parameters - lists of values to test
-  steps: [1, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
+  steps: [1, 2, 3] # Number of steps to propagate the perturbation prediction algorithm
   score_transform: ["threshold", "sigmoid"] # Transform methods to test
 
   # Threshold-specific parameters (only used when score_transform = "threshold")
   threshold_params:
-    threshold: [0.6] # Threshold values to test
+    threshold: [0.4, 0.6, 0.8] # Threshold values to test
 
   # Sigmoid-specific parameters (only used when score_transform = "sigmoid")  
   sigmoid_params:
-    steepness: [10] # Steepness values to test
-    midpoint: [0.5] # Midpoint values to test
-
-evaluate:
-  verbose: false
+    steepness: [5.0, 10.0, 15.0] # Steepness values to test
+    midpoint: [0.3, 0.5, 0.7] # Midpoint values to test

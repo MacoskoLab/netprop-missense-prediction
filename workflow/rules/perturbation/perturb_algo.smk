@@ -1,13 +1,3 @@
-import sys
-import os
-
-# Add the scripts directory to Python path for utils import
-scripts_dir = os.path.join(workflow.basedir, "scripts")
-sys.path.insert(0, scripts_dir)
-
-from utils.combination_utils import get_combination_ids
-
-
 rule generate_grid_combinations:
     """Generate parameter combinations for perturbation algorithm grid search."""
     output:
@@ -16,6 +6,37 @@ rule generate_grid_combinations:
         "Generating parameter combinations for perturbation algorithm grid search"
     script:
         f"{SCRIPTS_DIR}/perturbation/generate_grid_combinations.py"
+
+
+def get_combination_ids():
+    """Get all combination IDs from the config."""
+    import itertools
+
+    perturb_config = config["perturbation_algorithm"]
+
+    combination_id = 0
+    combination_ids = []
+
+    steps_list = perturb_config["steps"]
+    transform_methods = perturb_config["score_transform"]
+
+    for transform_method in transform_methods:
+        for steps in steps_list:
+            if transform_method == "threshold":
+                threshold_values = perturb_config["threshold_params"]["threshold"]
+                for threshold in threshold_values:
+                    combination_ids.append(combination_id)
+                    combination_id += 1
+            elif transform_method == "sigmoid":
+                steepness_values = perturb_config["sigmoid_params"]["steepness"]
+                midpoint_values = perturb_config["sigmoid_params"]["midpoint"]
+                for steepness, midpoint in itertools.product(
+                    steepness_values, midpoint_values
+                ):
+                    combination_ids.append(combination_id)
+                    combination_id += 1
+
+    return combination_ids
 
 
 rule download_am_scores:
@@ -51,3 +72,19 @@ rule simple_perturb_algo:
         f"{ENVS_DIR}/perturb.yml"
     script:
         f"{SCRIPTS_DIR}/perturbation/perturb_algo.py"
+
+
+rule run_all_perturbation_combinations:
+    """Run perturbation algorithm for all parameter combinations."""
+    input:
+        expand(
+            f"results/{run}/perturbation/predicted_perturbed_weights_{{combination_id}}.h5",
+            combination_id=get_combination_ids(),
+        ),
+    output:
+        summary=f"results/{run}/perturbation/all_combinations_complete.txt",
+    message:
+        "All perturbation combinations completed"
+    run:
+        with open(output.summary, "w") as f:
+            f.write(f"Completed {len(input)} perturbation combinations\n")

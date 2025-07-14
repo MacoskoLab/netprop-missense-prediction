@@ -13,15 +13,15 @@ if TYPE_CHECKING:
 
 
 import os
-import re
 from itertools import combinations
 
+import h5py
 import pandas as pd
 from scipy.spatial.distance import euclidean
 from scipy.stats import energy_distance, wasserstein_distance
 
 
-def compute_distance_metrics(matrix1, matrix2, name1, name2):
+def compute_distance_metrics(matrix1_fp, matrix2_fp, name1, name2):
     """
     Compute distance metrics between two weight matrices.
 
@@ -31,8 +31,8 @@ def compute_distance_metrics(matrix1, matrix2, name1, name2):
     Returns:
         dict: Dictionary with euclidean, wasserstein, and energy distances
     """
-    matrix1 = matrix1.fillna(0)
-    matrix2 = matrix2.fillna(0)
+    matrix1 = load_matrix(matrix1_fp, name1).fillna(0)
+    matrix2 = load_matrix(matrix2_fp, name2).fillna(0)
 
     print(f"Comparing matrices: {name1} vs {name2}")
 
@@ -76,7 +76,7 @@ def compute_distance_metrics(matrix1, matrix2, name1, name2):
     }
 
 
-def load_matrix(filepath) -> pd.DataFrame:
+def load_matrix(filepath, matrix_name) -> pd.DataFrame:
     """
     Read a weight matrix from a file.
 
@@ -86,6 +86,7 @@ def load_matrix(filepath) -> pd.DataFrame:
     Returns:
         pd.DataFrame: DataFrame containing the weight matrix.
     """
+    print(f"Loading matrix: {matrix_name} from {filepath}")
     if filepath.endswith(".h5"):
         return pd.read_hdf(filepath, key="weight_matrix", mode="r")  # type: ignore
     elif filepath.endswith(".tsv") or filepath.endswith(".txt"):
@@ -98,75 +99,80 @@ def load_matrix(filepath) -> pd.DataFrame:
 
 def compare_matrices(matrices):
     """
-    Compare a set of pairs of matrices and compute distance metrics.
+    Compare all pairs of matrices and compute distance metrics.
 
     Args:
-        matrices (dict): Dictionary with matrix names as keys and DataFrames as values.
+        matrices (list): List of tuples (name, filepath) for matrices.
 
     Returns:
         list: List of dictionaries with comparison results.
     """
     results = []
-    for (name1, matrix1), (name2, matrix2) in combinations(matrices.items(), 2):
-        metrics = compute_distance_metrics(matrix1, matrix2, name1, name2)
-        results.append({"matrix1": name1, "matrix2": name2, **metrics})
-    return pd.DataFrame(results)
+    for i in range(len(matrices)):
+        for j in range(i + 1, len(matrices)):
+            name1, filepath1 = matrices[i]
+            name2, filepath2 = matrices[j]
+            metrics = compute_distance_metrics(filepath1, filepath2, name1, name2)
+            results.append({"matrix1": name1, "matrix2": name2, **metrics})
+    return results
 
 
 def main():
     # Get input files from snakemake
-    real_perturbed = load_matrix(snakemake.input["real_perturbed_matrix"])
-    real_unperturbed = load_matrix(snakemake.input["real_unperturbed_matrix"])
-    matrix_combinations = pd.read_csv(snakemake.input["matrix_combinations"], sep="\t")
-    predicted_perturbed_matrices = []
-    print(
-        f"Looking for predicted matrices in: {snakemake.input['predicted_perturbed_matrices']}"
-    )
+    base_matrix_files = snakemake.input.base_matrices
+    predicted_matrix_files = snakemake.input.predicted_matrices
+    combinations_file = snakemake.input.combinations
+    output_file = snakemake.output.results
 
-    for matrix_fp in snakemake.input["predicted_perturbed_matrices"]:
-        # Extract combination ID from filename using regex
-        filename = os.path.basename(matrix_fp)
-        print(f"Processing file: {filename}")
-        match = re.search(r"predicted_perturbed_weights_(\d+)\.", filename)
-        if match:
-            combination_id = int(match.group(1))
-            predicted_perturbed_matrices.append((matrix_fp, combination_id))
-        else:
-            raise ValueError(
-                f"Could not extract combination ID from filename: {filename}"
-            )
+    # Load combinations to get parameter info for each predicted matrix
+    combinations_df = pd.read_csv(combinations_file, sep="\t")
 
-    print(f"Found {len(predicted_perturbed_matrices)} predicted matrices")
-    if len(predicted_perturbed_matrices) == 0:
-        print("ERROR: No predicted matrices found!")
-        return
+    # Prepare all matrices for comparison
+    matrices = []
 
-    output_fp = snakemake.output.results
+    # Add base matrices
+    for matrix_file in base_matrix_files:
+        name = os.path.splitext(os.path.basename(matrix_file))[0]
+        matrices.append((name, matrix_file))
 
-    comparison_results = []
+    # Add predicted matrices with parameter information in the name
+    for matrix_file in predicted_matrix_files:
+        # Extract combination ID from filename
+        filename = os.path.basename(matrix_file)
+        combination_id = int(filename.split("_")[-1].split(".")[0])
 
-    for predicted_matrix_fp, combination_id in predicted_perturbed_matrices:
-        print(f"Processing combination ID: {combination_id}")
-        # Load matrices
-        matrices = {
-            "real_perturbed": real_perturbed,
-            "real_unperturbed": real_unperturbed,
-            "predicted_perturbed": load_matrix(predicted_matrix_fp),
-        }
+        # Get parameter info for this combination
+        combo_row = combinations_df[
+            combinations_df["combination_id"] == combination_id
+        ].iloc[0]
 
-        # Compare matrices
-        comparison = compare_matrices(matrices)
-        comparison["combination_id"] = combination_id
-        comparison_results.append(comparison)
+        # Create informative name including parameters
+        if combo_row["score_transform"] == "threshold":
+            name = f"predicted_comb{combination_id}_steps{combo_row['steps']}_threshold{combo_row['threshold']}"
+        else:  # sigmoid
+            name = f"predicted_comb{combination_id}_steps{combo_row['steps']}_sigmoid_steep{combo_row['steepness']}_mid{combo_row['midpoint']}"
 
-    results_df = pd.concat(comparison_results, ignore_index=True)
+        matrices.append((name, matrix_file))
 
-    # Add results to grid params
-    results_df = results_df.merge(matrix_combinations, on="combination_id", how="left")
+    print(f"Comparing {len(matrices)} matrices: {[name for name, _ in matrices]}")
+    results = compare_matrices(matrices)
 
-    results_df.to_csv(output_fp, sep="\t", index=False)
-    print(f"Results saved to {output_fp}")
-    print("All pairwise comparisons completed.")
+    # Create output DataFrame
+    results_df = pd.DataFrame(results)
+
+    # Reorder columns to match requested format
+    results_df = results_df[
+        [
+            "matrix1",
+            "matrix2",
+            "euclidean_distance",
+            "wasserstein_distance",
+            "energy_distance",
+        ]
+    ]
+
+    # Save results
+    results_df.to_csv(output_file, sep="\t", index=False)
 
 
 if __name__ == "__main__":
