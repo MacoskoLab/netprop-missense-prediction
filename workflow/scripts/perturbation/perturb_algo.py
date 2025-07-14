@@ -11,81 +11,83 @@ import pandas as pd
 
 
 def threshold_transform_matrix(
-    weight_matrix: pd.DataFrame, score_series: pd.Series, threshold: float
+    weight_matrix: pd.DataFrame, gene: str, score: float, threshold: float
 ) -> pd.DataFrame:
     """
-    For each gene with score >= threshold, scale outgoing edge weights (rows).
+    For the specified gene with score >= threshold, scale its outgoing edge weights (row).
     """
     weight_matrix_out = weight_matrix.copy()
 
-    # Create a series aligned with the weight matrix index, filling missing genes with 0
-    aligned_scores = score_series.reindex(weight_matrix.index, fill_value=0.0)
+    # Only transform if score meets threshold
+    if score >= threshold:
+        fraction = np.clip((score - threshold) / (1.0 - threshold), 0.0, 1.0)
+        scaling_factor = 1.0 - fraction
+        weight_matrix_out.loc[gene] *= scaling_factor
 
-    # Vectorized computation: handle NaN values and compute fractions
-    valid_mask = ~np.isnan(aligned_scores) & (aligned_scores >= threshold)
-    fractions = np.zeros_like(aligned_scores, dtype=float)
-    fractions[valid_mask] = np.clip(
-        (aligned_scores[valid_mask] - threshold) / (1.0 - threshold), 0.0, 1.0
-    )
-
-    # Vectorized scaling: multiply each row by (1 - fraction)
-    scaling_factors = 1.0 - fractions
-    weight_matrix_out = weight_matrix_out.multiply(scaling_factors, axis="index")
-
-    print("threshold_transform_matrix finished", flush=True)
     return weight_matrix_out
 
 
 def sigmoid_transform_matrix(
     weight_matrix: pd.DataFrame,
-    score_series: pd.Series,
+    gene: str,
+    score: float,
     steepness: float,
     midpoint: float,
 ) -> pd.DataFrame:
     """
-    For each gene, apply sigmoid-based scaling to outgoing edge weights (rows).
+    For the specified gene, apply sigmoid-based scaling to its outgoing edge weights (row).
     """
     weight_matrix_out = weight_matrix.copy()
 
-    # Create a series aligned with the weight matrix index, filling missing genes with 0
-    aligned_scores = score_series.reindex(weight_matrix.index, fill_value=0.0)
+    fraction = 1.0 / (1.0 + np.exp(-steepness * (score - midpoint)))
+    scaling_factor = 1.0 - fraction
+    weight_matrix_out.loc[gene] *= scaling_factor
 
-    # Vectorized sigmoid computation: handle NaN values
-    valid_mask = ~np.isnan(aligned_scores)
-    fractions = np.zeros_like(aligned_scores, dtype=float)
-    fractions[valid_mask] = 1.0 / (
-        1.0 + np.exp(-steepness * (aligned_scores[valid_mask] - midpoint))
-    )
-
-    # Vectorized scaling: multiply each row by (1 - fraction)
-    scaling_factors = 1.0 - fractions
-    weight_matrix_out = weight_matrix_out.multiply(scaling_factors, axis="index")
-
-    print("sigmoid_transform_matrix finished", flush=True)
     return weight_matrix_out
 
 
 def propagate_effects_matrix(
-    weight_matrix: pd.DataFrame, score_series: pd.Series, steps: int
+    weight_matrix: pd.DataFrame, gene: str, score: float, steps: int
 ) -> pd.Series:
     """
-    Propagate initial scores through matrix multiplication.
+    Propagate initial score from a single gene through matrix multiplication.
     Returns a series of cumulative perturbation per gene.
     """
-    # Ensure all genes in the matrix are represented in the propagated series
-    all_genes = weight_matrix.index.union(weight_matrix.columns)
-    propagated = pd.Series({gene: score_series.get(gene, 0.0) for gene in all_genes})
+    # Initialize propagated values for all genes in the weight matrix
+    propagated = pd.Series(0.0, index=weight_matrix.index)
 
-    for _ in range(steps):
-        # Matrix multiplication: propagated values flow through edges
-        # weight_matrix.T because we want to multiply by the transpose
-        # (target genes as rows, source genes as columns)
-        propagated_next = weight_matrix.T.dot(
-            propagated.reindex(weight_matrix.index, fill_value=0.0)
-        )
+    # Set initial score for the perturbed gene
+    propagated[gene] = score
+
+    if debug:
+        print(f"Initial propagation - {gene}: {score}", flush=True)
+        print(f"Step 0: Total propagated effect = {propagated.sum():.6f}", flush=True)
+        print(f"Step 0: Non-zero genes = {(propagated != 0).sum()}", flush=True)
+
+    for step in range(steps):
+        propagated_next = weight_matrix.T.dot(propagated)
         propagated = propagated.add(propagated_next, fill_value=0.0)
 
-    print("propagate_effects_matrix finished", flush=True)
+        if debug:
+            print(
+                f"Step {step + 1}: Total propagated effect = {propagated.sum():.6f}",
+                flush=True,
+            )
+            print(
+                f"Step {step + 1}: Non-zero genes = {(propagated != 0).sum()}",
+                flush=True,
+            )
+            print(
+                f"Step {step + 1}: Max effect = {propagated.max():.6f}, Min effect = {propagated.min():.6f}",
+                flush=True,
+            )
+
+    if debug:
+        print(
+            f"Final propagation complete. Affected genes: {(propagated != 0).sum()}/{len(propagated)}",
+            flush=True,
+        )
+
     return propagated
 
 
@@ -95,86 +97,101 @@ def update_matrix_weights_with_propagation(
     """
     Scale each gene's outgoing edges (rows) by (1 - propagated[gene]).
     """
+    if debug:
+        print(
+            f"Updating weight matrix with propagated effects. Affected genes: {(propagated != 0).sum()}/{len(propagated)}",
+            flush=True,
+        )
+
     weight_matrix_out = weight_matrix_original.copy()
-
-    # Create a series aligned with the weight matrix index, filling missing genes with 0
-    aligned_propagated = propagated.reindex(
-        weight_matrix_original.index, fill_value=0.0
-    )
-
-    # Vectorized scaling: multiply each row by (1 - propagated_value)
-    scaling_factors = 1.0 - aligned_propagated
+    scaling_factors = 1.0 - propagated
     weight_matrix_out = weight_matrix_out.multiply(scaling_factors, axis="index")
 
-    print("update_matrix_weights_with_propagation finished", flush=True)
+    if debug:
+        print(
+            f"Weight matrix updated. First 10 edge weights for {propagated.index[0]}: {weight_matrix_out.loc[propagated.index[0]].values[:10]}",
+            flush=True,
+        )
+
     return weight_matrix_out
 
 
 def main():
-    # Get combination ID from params
-    combination_id = int(snakemake.params["combination_id"])
+    # Handle debug flag
+    global debug
+    debug = snakemake.params.get("debug", False)
 
-    # Load combinations file to get parameters for this combination
+    # Handle combination ID
+    combination_id = int(snakemake.params["combination_id"])
     combinations_df = pd.read_csv(snakemake.input["combinations"], sep="\t")
     combination_row = combinations_df[
         combinations_df["combination_id"] == combination_id
     ].iloc[0]
 
-    # Extract parameters from the combination
-    steps = int(combination_row["steps"])
-    method = combination_row["score_transform"]
-
-    # Load file paths
-    genie3_weights_file_path = snakemake.input["genie3_weights"]
-    am_scores_path = snakemake.input["am_scores"]
-    perturb_list_path = snakemake.input["perturbations_list"]
-    output_path = snakemake.output["perturbed_weights"]
-
-    # Load weight matrix from TSV
-    weight_matrix = pd.read_csv(genie3_weights_file_path, sep="\t", index_col=0)
-
-    am_df = pd.read_csv(am_scores_path, sep="\t")
-    perturb_df = pd.read_csv(perturb_list_path, sep="\t")
-
-    # Filter AM scores to only those gene-variant pairs
-    sel = am_df.merge(perturb_df, on=["gene", "variant"])
-    # Build score series indexed by gene; exact variants, no aggregation
-    S_series = sel.set_index("gene")["score"]
-
-    print(
-        f"Beginning perturbation algorithm for combination {combination_id}...",
-        flush=True,
+    # Load files
+    weight_matrix = pd.read_csv(
+        snakemake.input["genie3_weights"], sep="\t", index_col=0
     )
-    print(f"Parameters: steps={steps}, method={method}", flush=True)
+    am_df = pd.read_csv(snakemake.input["am_scores"], sep="\t")
+    perturb_df = pd.read_csv(snakemake.input["perturbations_list"], sep="\t")
 
-    if method == "threshold":
-        threshold_value = combination_row["threshold"]
-        print(f"Threshold parameters: threshold={threshold_value}", flush=True)
-        weight_matrix_scaled = threshold_transform_matrix(
-            weight_matrix, S_series, threshold_value
-        )
-    elif method == "sigmoid":
-        steepness = combination_row["steepness"]
-        midpoint = combination_row["midpoint"]
+    perturbed_gene = perturb_df["gene"].iloc[0]  # Expect exactly one gene-variant pair
+    perturbed_score = am_df.loc[am_df["gene"] == perturbed_gene, "score"]
+
+    if debug:
         print(
-            f"Sigmoid parameters: steepness={steepness}, midpoint={midpoint}",
-            flush=True,
+            f"Perturbing gene: {perturbed_gene} with AlphaMissense score: {perturbed_score}"
         )
+
+    # Sanity check!
+    if perturbed_gene not in weight_matrix.index:
+        raise ValueError(
+            f"Perturbed gene '{perturbed_gene}' not found in weight matrix index."
+        )
+
+    if debug:
+        print(
+            f"First 10 edge weights for {perturbed_gene} before scaling: {weight_matrix.loc[perturbed_gene].values[:10]}"
+        )
+
+    if combination_row["score_transform"] == "threshold":
+        weight_matrix_scaled = threshold_transform_matrix(
+            weight_matrix,
+            perturbed_gene,
+            perturbed_score,
+            combination_row["threshold"],
+        )
+    elif combination_row["score_transform"] == "sigmoid":
         weight_matrix_scaled = sigmoid_transform_matrix(
-            weight_matrix, S_series, steepness, midpoint
+            weight_matrix,
+            perturbed_gene,
+            perturbed_score,
+            combination_row["steepness"],
+            combination_row["midpoint"],
         )
     else:
-        raise ValueError(f"Unknown method: {method}")
+        raise ValueError(f"Unknown method: {combination_row['score_transform']}")
 
-    propagated_series = propagate_effects_matrix(weight_matrix_scaled, S_series, steps)
+    if debug:
+        print(
+            f"First 10 edge weights for {perturbed_gene} after scaling: {weight_matrix_scaled.loc[perturbed_gene].values[:10]}"
+        )
+
+    propagated_series = propagate_effects_matrix(
+        weight_matrix_scaled,
+        perturbed_gene,
+        perturbed_score,
+        int(combination_row["steps"]),
+    )
 
     weight_matrix_final = update_matrix_weights_with_propagation(
         weight_matrix, propagated_series
     )
 
     # Export weight matrix
-    weight_matrix_final.to_hdf(output_path, key="weight_matrix", mode="w")
-    print(f"Weight matrix written to {output_path}", flush=True)
+    weight_matrix_final.to_hdf(
+        snakemake.output["perturbed_weights"], key="weight_matrix", mode="w"
+    )
 
 
 if __name__ == "__main__":

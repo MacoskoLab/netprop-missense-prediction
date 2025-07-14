@@ -1,49 +1,51 @@
-run_name: "real_1000_trees"
+run_name: "GSE158067_perturbation_prediction"
 run_number: null
+
 
 input_data:
   gene_expression_matrix: "resources/GSE158067/GSE158067_gene_exp_mtx.txt" # Path to the gene expression matrix
   cell_metadata: "resources/GSE158067/GSE158067_cell_to_perturbation.tsv" # Path to the cell metadata file with mutation information
 
+
 # Parameters for the Genie3 algorithm
 genie3:
   tree_method: "RF" # options: "ET", "RF" (default is "RF")
   K: "sqrt" # default is 1000
-  n_trees: 1000 # default is 1000
+  n_trees: 1 # default is 1000
   verbose: true # Enable verbose output
+
 
 # Parameters for comprehensive single-cell preprocessing
 single_cell_preprocessing:
   # Enable/disable preprocessing steps
   enable_quality_control: false # Enable quality control filtering
-  enable_normalization: false # Enable normalization and log transformation
+  enable_normalization: true # Enable normalization and log transformation
   enable_hvg_identification: true # Enable highly variable gene identification
-  enable_scaling: false # Enable data scaling
-  enable_pseudobulk: false # Enable pseudobulk aggregation
-  # HVG identification parameters
-  min_mean: 0.0125 # Minimum mean expression for HVG selection
-  max_mean: 4.0 # Maximum mean expression for HVG selection
-  min_disp: 0.5 # Minimum normalized dispersion for HVG selection
-  n_top_genes: null # Number of top variable genes to select (null to use dispersion cutoffs)
+  enable_scaling: true # Enable data scaling
+
   # Quality control parameters
   min_genes: 200 # Minimum number of genes expressed per cell
   min_cells: 3 # Minimum number of cells expressing each gene
   max_genes: 5000 # Maximum number of genes per cell (filter potential doublets)
   mt_threshold: 20 # Maximum percentage of mitochondrial genes per cell
+
+  # HVG identification parameters
+  min_mean: 0.0125 # Minimum mean expression for HVG selection
+  max_mean: 3 # Maximum mean expression for HVG selection
+  min_disp: 0.5 # Minimum normalized dispersion for HVG selection
+  n_top_genes: 15000 # Number of top variable genes to select (null to use dispersion cutoffs)
+
   # Normalization parameters
   target_sum: 10000 # Target sum for normalization (counts per cell)
+
   # Scaling parameters
   max_value: 10 # Maximum value after scaling
-  # PCA parameters (for pseudobulk)
-  n_comps: 50 # Number of principal components
-  # Clustering parameters (for pseudobulk)
-  n_neighbors: 5 # Number of neighbors for neighborhood graph
-  n_pcs: 40 # Number of PCs to use for neighborhood graph
-  resolution: 1 # Resolution for Leiden clustering
+
 
 # Parameters for the AlphaMissense API
 alphamissense_api:
   variants: "resources/GSE158067/GSE158067_mutations_CH02_CH04.txt" # file with variants that we need AM scores for
+
 
 # Parameters for the perturbation prediction
 perturbation_algorithm:
@@ -53,14 +55,14 @@ perturbation_algorithm:
   debug: true # set to true to print debug information
 
   # Grid search parameters - lists of values to test
-  steps: [1, 2, 3] # Number of steps to propagate the perturbation prediction algorithm
-  score_transform: ["threshold", "sigmoid"] # Transform methods to test
+  steps: [5] # Number of steps to propagate the perturbation prediction algorithm
+  score_transform: ["threshold"] # Transform methods to test
 
   # Threshold-specific parameters (only used when score_transform = "threshold")
   threshold_params:
-    threshold: [0.4, 0.6, 0.8] # Threshold values to test
+    threshold: [0.6] # Threshold values to test
 
   # Sigmoid-specific parameters (only used when score_transform = "sigmoid")  
   sigmoid_params:
-    steepness: [5.0, 10.0, 15.0] # Steepness values to test
-    midpoint: [0.3, 0.5, 0.7] # Midpoint values to test
+    steepness: [10] # Steepness values to test
+    midpoint: [0.5] # Midpoint values to test

@@ -12,3 +12,6 @@ dependencies:
   - leidenalg
   - pytables
   - h5py
+  - matplotlib
+  - seaborn
+  - jupyter

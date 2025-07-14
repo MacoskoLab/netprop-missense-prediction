@@ -56,5 +56,8 @@ onerror:
 rule all:
     input:
         CONFIG_FILES,  # Add config files as dependencies
-        f"results/{run}/evaluation/weight_matrices_distances_plots/",
+        expand(
+            f"results/{run}/evaluation/weight_matrices_distances_plot.{{ext}}",
+            ext=["jpeg", "html"],
+        ),
     default_target: True

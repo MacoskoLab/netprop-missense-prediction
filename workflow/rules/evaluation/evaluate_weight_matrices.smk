@@ -1,21 +1,21 @@
-def get_all_perturbation_files(wildcards):
+def get_all_perturbation_files(run_name):
     """Get all predicted perturbation files for evaluation."""
     import pandas as pd
     import os
 
-    combinations_file = f"results/{wildcards.run}/perturbation/grid_combinations.tsv"
+    combinations_file = f"results/{run_name}/perturbation/grid_combinations.tsv"
 
     # Check if combinations file exists (for grid search mode)
     if os.path.exists(combinations_file):
         combinations_df = pd.read_csv(combinations_file, sep="\t")
         combination_ids = combinations_df["combination_id"].tolist()
         return [
-            f"results/{wildcards.run}/perturbation/predicted_perturbed_weights_{cid}.h5"
+            f"results/{run_name}/perturbation/predicted_perturbed_weights_{cid}.h5"
             for cid in combination_ids
         ]
     else:
         # Fallback to single file (for backward compatibility)
-        return [f"results/{wildcards.run}/perturbation/predicted_perturbed_weights.h5"]
+        return [f"results/{run_name}/perturbation/predicted_perturbed_weights.h5"]
 
 
 rule compute_all_weight_matrices_distances:
@@ -33,7 +33,7 @@ rule compute_all_weight_matrices_distances:
             f"results/{run}/perturbation/real_unperturbed_weights.tsv",
             f"results/{run}/perturbation/real_perturbed_weights.tsv",
         ],
-        predicted_matrices=get_all_perturbation_files,
+        predicted_matrices=get_all_perturbation_files(run),
         combinations=f"results/{run}/perturbation/grid_combinations.tsv",
     output:
         results=f"results/{run}/evaluation/weight_matrices_comparison.tsv",
@@ -55,14 +55,9 @@ rule plot_weight_matrices_distances:
     input:
         distances=f"results/{run}/evaluation/weight_matrices_comparison.tsv",
     output:
-        report(
-            expand(
-                f"results/{run}/evaluation/weight_matrices_distances_plot.{{ext}}",
-                ext=["jpeg", "html"],
-            ),
-            caption="report/weight_matrices_distances.rst",
-            category="Weight Matrix Evaluation",
-            subcategory="Distance Metrics",
+        expand(
+            f"results/{run}/evaluation/weight_matrices_distances_plot.{{ext}}",
+            ext=["jpeg", "html"],
         ),
     message:
         "Plotting weight matrices distances for all parameter combinations"
