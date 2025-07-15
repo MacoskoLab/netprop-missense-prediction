@@ -17,7 +17,7 @@ rule preprocess_expr_data:
     message:
         "Preprocessing single-cell expression data"
     log:
-        notebook=f"results/{run}/preprocessing/preprocessing/preprocess_data.processed.ipynb",
+        notebook=f"results/{run}/preprocessing/preprocess_data.processed.ipynb",
     conda:
         f"{ENVS_DIR}/preprocess.yml"
     notebook:

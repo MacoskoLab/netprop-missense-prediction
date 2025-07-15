@@ -15,7 +15,6 @@ if TYPE_CHECKING:
 import os
 from itertools import combinations
 
-import h5py
 import pandas as pd
 from scipy.spatial.distance import euclidean
 from scipy.stats import energy_distance, wasserstein_distance

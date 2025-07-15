@@ -136,7 +136,7 @@ def main():
     perturb_df = pd.read_csv(snakemake.input["perturbations_list"], sep="\t")
 
     perturbed_gene = perturb_df["gene"].iloc[0]  # Expect exactly one gene-variant pair
-    perturbed_score = am_df.loc[am_df["gene"] == perturbed_gene, "score"]
+    perturbed_score = am_df.loc[am_df["gene"] == perturbed_gene, "score"].iloc[0]
 
     if debug:
         print(

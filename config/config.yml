@@ -1,5 +1,5 @@
 run_name: "GSE158067_perturbation_prediction"
-run_number: null
+run_number: 1
 
 
 input_data:
@@ -18,7 +18,7 @@ genie3:
 # Parameters for comprehensive single-cell preprocessing
 single_cell_preprocessing:
   # Enable/disable preprocessing steps
-  enable_quality_control: false # Enable quality control filtering
+  enable_quality_control: true # Enable quality control filtering
   enable_normalization: true # Enable normalization and log transformation
   enable_hvg_identification: true # Enable highly variable gene identification
   enable_scaling: true # Enable data scaling
@@ -41,7 +41,6 @@ single_cell_preprocessing:
   # Scaling parameters
   max_value: 10 # Maximum value after scaling
 
-
 # Parameters for the AlphaMissense API
 alphamissense_api:
   variants: "resources/GSE158067/GSE158067_mutations_CH02_CH04.txt" # file with variants that we need AM scores for
@@ -55,7 +54,7 @@ perturbation_algorithm:
   debug: true # set to true to print debug information
 
   # Grid search parameters - lists of values to test
-  steps: [5] # Number of steps to propagate the perturbation prediction algorithm
+  steps: [1, 2] # Number of steps to propagate the perturbation prediction algorithm
   score_transform: ["threshold"] # Transform methods to test
 
   # Threshold-specific parameters (only used when score_transform = "threshold")

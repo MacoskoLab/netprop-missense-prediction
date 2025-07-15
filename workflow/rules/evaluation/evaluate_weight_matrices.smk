@@ -1,21 +1,32 @@
-def get_all_perturbation_files(run_name):
-    """Get all predicted perturbation files for evaluation."""
-    import pandas as pd
-    import os
+def get_combination_ids():
+    """Get all combination IDs from the config."""
+    import itertools
 
-    combinations_file = f"results/{run_name}/perturbation/grid_combinations.tsv"
+    perturb_config = config["perturbation_algorithm"]
 
-    # Check if combinations file exists (for grid search mode)
-    if os.path.exists(combinations_file):
-        combinations_df = pd.read_csv(combinations_file, sep="\t")
-        combination_ids = combinations_df["combination_id"].tolist()
-        return [
-            f"results/{run_name}/perturbation/predicted_perturbed_weights_{cid}.h5"
-            for cid in combination_ids
-        ]
-    else:
-        # Fallback to single file (for backward compatibility)
-        return [f"results/{run_name}/perturbation/predicted_perturbed_weights.h5"]
+    combination_id = 0
+    combination_ids = []
+
+    steps_list = perturb_config["steps"]
+    transform_methods = perturb_config["score_transform"]
+
+    for transform_method in transform_methods:
+        for steps in steps_list:
+            if transform_method == "threshold":
+                threshold_values = perturb_config["threshold_params"]["threshold"]
+                for threshold in threshold_values:
+                    combination_ids.append(combination_id)
+                    combination_id += 1
+            elif transform_method == "sigmoid":
+                steepness_values = perturb_config["sigmoid_params"]["steepness"]
+                midpoint_values = perturb_config["sigmoid_params"]["midpoint"]
+                for steepness, midpoint in itertools.product(
+                    steepness_values, midpoint_values
+                ):
+                    combination_ids.append(combination_id)
+                    combination_id += 1
+
+    return combination_ids
 
 
 rule compute_all_weight_matrices_distances:
@@ -33,7 +44,10 @@ rule compute_all_weight_matrices_distances:
             f"results/{run}/perturbation/real_unperturbed_weights.tsv",
             f"results/{run}/perturbation/real_perturbed_weights.tsv",
         ],
-        predicted_matrices=get_all_perturbation_files(run),
+        predicted_matrices=expand(
+            f"results/{run}/perturbation/predicted_perturbed_weights_{{combination_id}}.h5",
+            combination_id=get_combination_ids(),
+        ),
         combinations=f"results/{run}/perturbation/grid_combinations.tsv",
     output:
         results=f"results/{run}/evaluation/weight_matrices_comparison.tsv",
