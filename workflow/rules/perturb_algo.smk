@@ -5,7 +5,7 @@ rule generate_grid_combinations:
     message:
         "Generating parameter combinations for perturbation algorithm grid search"
     script:
-        f"{SCRIPTS_DIR}/perturbation/generate_grid_combinations.py"
+        f"{SCRIPTS_DIR}/generate_grid_combinations.py"
 
 
 def get_combination_ids():
@@ -50,7 +50,7 @@ rule download_am_scores:
     conda:
         f"{ENVS_DIR}/download_am_scores.yml"
     script:
-        f"{SCRIPTS_DIR}/perturbation/download_am_scores.py"
+        f"{SCRIPTS_DIR}/download_am_scores.py"
 
 
 rule simple_perturb_algo:
@@ -71,20 +71,4 @@ rule simple_perturb_algo:
     conda:
         f"{ENVS_DIR}/perturb.yml"
     script:
-        f"{SCRIPTS_DIR}/perturbation/perturb_algo.py"
-
-
-rule run_all_perturbation_combinations:
-    """Run perturbation algorithm for all parameter combinations."""
-    input:
-        expand(
-            f"results/{run}/perturbation/predicted_perturbed_weights_{{combination_id}}.h5",
-            combination_id=get_combination_ids(),
-        ),
-    output:
-        summary=f"results/{run}/perturbation/all_combinations_complete.txt",
-    message:
-        "All perturbation combinations completed"
-    run:
-        with open(output.summary, "w") as f:
-            f.write(f"Completed {len(input)} perturbation combinations\n")
+        f"{SCRIPTS_DIR}/perturb_algo.py"

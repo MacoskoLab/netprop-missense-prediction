@@ -40,10 +40,8 @@ rule compute_all_weight_matrices_distances:
     outputting results in TSV format.
     """
     input:
-        base_matrices=[
-            f"results/{run}/perturbation/real_unperturbed_weights.tsv",
-            f"results/{run}/perturbation/real_perturbed_weights.tsv",
-        ],
+        real_unperturbed_weights=f"results/{run}/perturbation/real_unperturbed_weights.tsv",
+        real_perturbed_weights=f"results/{run}/perturbation/real_perturbed_weights.tsv",
         predicted_matrices=expand(
             f"results/{run}/perturbation/predicted_perturbed_weights_{{combination_id}}.h5",
             combination_id=get_combination_ids(),
@@ -56,26 +54,4 @@ rule compute_all_weight_matrices_distances:
     conda:
         f"{ENVS_DIR}/evaluation.yml"
     script:
-        f"{SCRIPTS_DIR}/evaluation/compute_weight_matrices_distances.py"
-
-
-rule plot_weight_matrices_distances:
-    """
-    Create a visualization of weight matrices distances.
-    Takes the TSV output from evaluate_all_weight_matrices and creates
-    a bar plot showing the three distance metrics for each matrix comparison.
-    Outputs both JPEG (static) and HTML (interactive) formats.
-    """
-    input:
-        distances=f"results/{run}/evaluation/weight_matrices_comparison.tsv",
-    output:
-        expand(
-            f"results/{run}/evaluation/weight_matrices_distances_plot.{{ext}}",
-            ext=["jpeg", "html"],
-        ),
-    message:
-        "Plotting weight matrices distances for all parameter combinations"
-    conda:
-        f"{ENVS_DIR}/plotting.yml"
-    script:
-        f"{SCRIPTS_DIR}/evaluation/plot_weight_matrices_distances.py"
+        f"{SCRIPTS_DIR}/compute_weight_matrices_distances.py"

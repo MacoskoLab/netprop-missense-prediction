@@ -11,7 +11,7 @@ dependencies:
   - python-igraph
   - leidenalg
   - pytables
-  - h5py
   - matplotlib
   - seaborn
-  - jupyter
+  - ipykernel
+  - notebook

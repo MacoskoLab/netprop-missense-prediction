@@ -15,4 +15,4 @@ rule build_genie3_weights:
     conda:
         f"{ENVS_DIR}/genie3.yml"
     script:
-        f"{SCRIPTS_DIR}/perturbation/genie3_weights.R"
+        f"{SCRIPTS_DIR}/genie3_weights.R"

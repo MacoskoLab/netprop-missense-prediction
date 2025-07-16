@@ -1,5 +1,5 @@
 run_name: "GSE158067_perturbation_prediction"
-run_number: 1
+run_number: 2
 
 
 input_data:
@@ -18,10 +18,11 @@ genie3:
 # Parameters for comprehensive single-cell preprocessing
 single_cell_preprocessing:
   # Enable/disable preprocessing steps
-  enable_quality_control: true # Enable quality control filtering
-  enable_normalization: true # Enable normalization and log transformation
+  enable_quality_control: false # Enable quality control filtering
+  enable_normalization: false # Enable normalization (library size normalization)
+  enable_log_transformation: true # Enable log transformation (log(x+1))
   enable_hvg_identification: true # Enable highly variable gene identification
-  enable_scaling: true # Enable data scaling
+  enable_scaling: false # Enable data scaling
 
   # Quality control parameters
   min_genes: 200 # Minimum number of genes expressed per cell

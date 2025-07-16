@@ -24,7 +24,7 @@ RULES_DIR = os.path.join(WORKFLOW_DIR, "rules")
 # Include rule files using wildcards
 import glob
 
-for rule_file in glob.glob(f"{RULES_DIR}/*/*.smk"):
+for rule_file in glob.glob(f"{RULES_DIR}/*.smk"):
     if "_legacy" not in rule_file:
         print(f"Including rule file: {rule_file}", flush=True)
 
@@ -55,9 +55,5 @@ onerror:
 # Define the main workflow
 rule all:
     input:
-        CONFIG_FILES,  # Add config files as dependencies
-        expand(
-            f"results/{run}/evaluation/weight_matrices_distances_plot.{{ext}}",
-            ext=["jpeg", "html"],
-        ),
+        f"results/{run}/evaluation/weight_matrices_comparison.tsv",
     default_target: True

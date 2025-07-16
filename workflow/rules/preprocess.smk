@@ -16,9 +16,7 @@ rule preprocess_expr_data:
         real_perturbed_processed_expr=f"results/{run}/preprocessing/real_perturbed_preprocessed_expr.tsv",
     message:
         "Preprocessing single-cell expression data"
-    log:
-        notebook=f"results/{run}/preprocessing/preprocess_data.processed.ipynb",
     conda:
         f"{ENVS_DIR}/preprocess.yml"
-    notebook:
-        f"{NOTEBOOKS_DIR}/preprocess_data.ipynb"
+    script:
+        f"{SCRIPTS_DIR}/preprocess.py"

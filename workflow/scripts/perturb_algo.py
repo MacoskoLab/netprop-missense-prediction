@@ -119,7 +119,8 @@ def update_matrix_weights_with_propagation(
 def main():
     # Handle debug flag
     global debug
-    debug = snakemake.params.get("debug", False)
+    debug = snakemake.config["perturbation_algorithm"].get("debug", False)
+    print(f"Debug mode: {debug}", flush=True)
 
     # Handle combination ID
     combination_id = int(snakemake.params["combination_id"])
@@ -129,9 +130,11 @@ def main():
     ].iloc[0]
 
     # Load files
+    print("Loading weight matrix...", flush=True)
     weight_matrix = pd.read_csv(
         snakemake.input["genie3_weights"], sep="\t", index_col=0
     )
+    print(f"Weight matrix shape: {weight_matrix.shape}", flush=True)
     am_df = pd.read_csv(snakemake.input["am_scores"], sep="\t")
     perturb_df = pd.read_csv(snakemake.input["perturbations_list"], sep="\t")
 
