@@ -20,3 +20,5 @@ work/**
 
 .env*
 config_local.yml
+
+cache/
