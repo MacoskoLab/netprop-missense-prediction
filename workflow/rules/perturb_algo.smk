@@ -57,6 +57,7 @@ rule simple_perturb_algo:
     """Run the simple perturbation algorithm using AM scores."""
     input:
         genie3_weights=f"results/{run}/perturbation/real_unperturbed_weights.tsv",
+        real_perturbed_weights=f"results/{run}/perturbation/real_perturbed_weights.tsv",
         am_scores=f"results/{run}/perturbation/am_scores.tsv",
         perturbations_list=lambda wildcards: config["perturbation_algorithm"][
             "perturbations_list"

@@ -9,13 +9,9 @@
 # 3. Quality control filtering (optional)
 # 4. Normalization (optional)
 # 5. Log transformation (optional)
-# 4. Normalization (optional)
-# 5. Log transformation (optional)
 # 6. Highly variable gene identification
 # 7. Data scaling (optional)
-# 8. PCA and dimensionality reduction (with visualizations)
-# 9. UMAP computation and visualization (with and without outliers)
-# 10. Split data by genotype and save processed matrices
+# 8. Split data by genotype and save processed matrices
 
 # %%
 from typing import TYPE_CHECKING
@@ -32,18 +28,15 @@ if TYPE_CHECKING:
 from pathlib import Path
 
 import anndata as ad
-import matplotlib.pyplot as plt
 import numpy as np
 
 # %%
 # Import required libraries
 import pandas as pd
 import scanpy as sc
-import seaborn as sns
 
 # Set scanpy settings
 sc.settings.verbosity = 3  # verbosity level
-# sc.settings.set_figure_params(dpi=80, facecolor="white")
 
 print("Libraries imported successfully")
 
@@ -331,9 +324,6 @@ if config.get("enable_hvg_identification", True):
         )
         print("\nTop 10 highly variable genes:")
         print(hvg_df[["means", "dispersions", "dispersions_norm"]].head(10))
-
-        # Plot highly variable genes
-        sc.pl.highly_variable_genes(adata)
 else:
     print(
         "Skipping highly variable gene identification - marking all genes as highly variable"
@@ -455,9 +445,6 @@ print(
     f"- Data processing completed with {adata.shape[0]} cells and {adata.shape[1]} genes"
 )
 print(f"- Generated expression matrices for WT and MT cells separately")
-print(f"- Created visualizations with and without outliers for clarity")
-print(f"- All cells (including outliers) were saved in the output files")
-print(f"- Outlier removal was only applied to visualization, not to saved data")
 
 if "highly_variable" in adata.var.columns:
     print(f"- Identified {adata.var['highly_variable'].sum()} highly variable genes")

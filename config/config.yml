@@ -1,5 +1,5 @@
-run_name: "GSE158067_perturbation_prediction"
-run_number: 2
+run_name: "GSE158067_perturbation_prediction_with_step_by_step_eval"
+run_number: screen-2
 
 
 input_data:
@@ -11,7 +11,7 @@ input_data:
 genie3:
   tree_method: "RF" # options: "ET", "RF" (default is "RF")
   K: "sqrt" # default is 1000
-  n_trees: 1 # default is 1000
+  n_trees: 1000 # default is 1000
   verbose: true # Enable verbose output
 
 
@@ -34,7 +34,7 @@ single_cell_preprocessing:
   min_mean: 0.0125 # Minimum mean expression for HVG selection
   max_mean: 3 # Maximum mean expression for HVG selection
   min_disp: 0.5 # Minimum normalized dispersion for HVG selection
-  n_top_genes: 15000 # Number of top variable genes to select (null to use dispersion cutoffs)
+  n_top_genes: 10000 # Number of top variable genes to select (null to use dispersion cutoffs)
 
   # Normalization parameters
   target_sum: 10000 # Target sum for normalization (counts per cell)
@@ -53,9 +53,10 @@ perturbation_algorithm:
   # For now this is just one mutation
   perturbations_list: "resources/GSE158067/GSE158067_mutations_CH02_CH04.txt"
   debug: true # set to true to print debug information
+  compare_with_real: true # set to true to compare predictions with real perturbed matrix step-by-step
 
   # Grid search parameters - lists of values to test
-  steps: [1, 2] # Number of steps to propagate the perturbation prediction algorithm
+  steps: [3] # Number of steps to propagate the perturbation prediction algorithm
   score_transform: ["threshold"] # Transform methods to test
 
   # Threshold-specific parameters (only used when score_transform = "threshold")

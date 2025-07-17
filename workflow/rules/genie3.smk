@@ -3,7 +3,7 @@ rule build_genie3_weights:
     Build the weight matrix for either unperturbed or perturbed expression data
     depending on the `{state}` wildcard (allowed values: ``unperturbed``, ``perturbed``).
     """
-    threads: 1
+    threads: workflow.cores
     input:
         expr=f"results/{run}/preprocessing/real_{{state}}_preprocessed_expr.tsv",
     output:

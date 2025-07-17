@@ -21,7 +21,7 @@ LOG_FILE="logs/snakemake.${TIMESTAMP}.log"
 
 # Run snakemake with standard profile and pass through all arguments
 # Use tee to log output to file while still showing on console
-snakemake --profile ./profiles/standard "$@" #2>&1 | tee "$LOG_FILE"
+snakemake --profile ./profiles/standard "$@" 2>&1 | tee "$LOG_FILE"
 
 # Capture exit code from snakemake (not tee)
 exit ${PIPESTATUS[0]}
