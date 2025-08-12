@@ -23,6 +23,10 @@ dependencies:
   - r-doRNG
   - scanpy
   - anndata
+  - ipykernel
+  - jupyter
   - pip
   - pip:
       - git+https://github.com/google-deepmind/alphagenome.git
+      - gseapy
+      - biomart

@@ -39,18 +39,18 @@ def get_combination_ids():
     return combination_ids
 
 
-rule download_am_scores:
+rule get_scores_for_propagation:
     """Download AM scores from the specified source."""
     input:
         variants=lambda wildcards: config["alphamissense_api"]["variants"],
     output:
-        am_scores=f"results/{run}/perturbation/am_scores.tsv",
+        am_scores=f"results/{run}/perturbation/scores.tsv",
     message:
         "Downloading AM scores"
     conda:
-        f"{ENVS_DIR}/download_am_scores.yml"
+        f"{ENVS_DIR}/get_scores_for_propagation.yml"
     script:
-        f"{SCRIPTS_DIR}/download_am_scores.py"
+        f"{SCRIPTS_DIR}/get_scores_for_propagation.py"
 
 
 rule simple_perturb_algo:
@@ -58,7 +58,7 @@ rule simple_perturb_algo:
     input:
         genie3_weights=f"results/{run}/perturbation/real_unperturbed_weights.tsv",
         real_perturbed_weights=f"results/{run}/perturbation/real_perturbed_weights.tsv",
-        am_scores=f"results/{run}/perturbation/am_scores.tsv",
+        am_scores=f"results/{run}/perturbation/scores.tsv",
         perturbations_list=lambda wildcards: config["perturbation_algorithm"][
             "perturbations_list"
         ],

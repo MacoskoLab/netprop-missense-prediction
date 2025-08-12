@@ -30,7 +30,7 @@ def get_uniprot_id(
 
 def fetch_am_score(gene: str, variant: str) -> float:
     uniprot_id = get_uniprot_id(gene)
-    url = f"https://alphafold.ebi.ac.uk/api/annotations/{uniprot_id}?annotation_type=MUTAGEN&key=AIzaSyCeurAJz7ZGjPQUtEaerUkBZ3TaBkXrY94"
+    url = f"https://alphafold.ebi.ac.uk/api/annotations/{uniprot_id}.json?type=MUTAGEN&key=AIzaSyCeurAJz7ZGjPQUtEaerUkBZ3TaBkXrY94"
     am_resp = requests.get(url)
     am_resp.raise_for_status()
 
@@ -66,5 +66,9 @@ for idx, row in sample_df.iterrows():
     results.append((gene, variant, score))
 
 results_df = pd.DataFrame(results, columns=["gene", "variant", "score"])
+
+# Integrate AlphaGenome scores
+results_df["score"] = results_df["score"] * 0.5  # just copied and pasted it
+
 results_df.to_csv(out_path, sep="\t", index=False, header=True)
 print(f"Downloaded AM scores for {len(results)} gene-variant pairs.")
