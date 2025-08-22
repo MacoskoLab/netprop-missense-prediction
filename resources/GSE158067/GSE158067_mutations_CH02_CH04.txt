@@ -1,0 +1,2 @@
+gene	variant
+DNMT3A	R882C
